@@ -106,9 +106,8 @@ for filename in os.listdir(input_dir):
         video_sequence.append(out_labels)
 
         temp_vec = [0] * 100
-        for i in range(len(skeleton_sequence),
-                       find_max_skeleton(input_dir)):  # padding 0s vector to the maximum size available
-            skeleton_sequence.append(temp_vec)  # making the video size for each activity same
+        for i in range(len(skeleton_sequence),find_max_skeleton(input_dir)):  # padding 0s vector to the maximum size available
+            skeleton_sequence.append(temp_vec)                                # making the video size for each activity same
         video_sequence.append(skeleton_sequence)
 
         train_list.append(video_sequence)

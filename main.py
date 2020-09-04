@@ -6,7 +6,6 @@ from torch.utils.data import DataLoader, Dataset
 
 def train():
 
-
     model.train() # Turn on the train mode
     total_loss = 0.
     start_time = time.time()
@@ -15,6 +14,7 @@ def train():
     batch=200
 
     for data, targets in train_loader:
+
         data = data.to(device)
         targets = targets.view(-1).to(device)
 
@@ -61,7 +61,7 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 kwargs = {'num_workers': 1, 'pin_memory': True} if device == 'cuda' else {}
 
 # Defining Model with parameters
-ntokens = 15400 # the size of vocabulary #change number of tokens from 15400 to 154
+ntokens = 60 # the size of vocabulary #change number of tokens from 15400 to 154
 emsize = 100 # embedding dimension
 nhid = 100 # the dimension of the feedforward network model in nn.TransformerEncoder
 nlayers = 2 # the number of nn.TransformerEncoderLayer in nn.TransformerEncoder
@@ -92,9 +92,11 @@ max_epochs = 100 # number of epochs
 # print(str(len(eval_loader)))
 #
 # for data, target in train_loader:
-#     print(data.shape)
-#     print(target.shape)
-#     print(data[0],target[0])
+#     y = (target.shape)
+#     x = (data.shape)
+#     a,b = (data[0],target[0])
+
+
 for epoch in range(1,  max_epochs):
     epoch_start_time = time.time()
     train()
