@@ -8,7 +8,8 @@ import pandas as pd
 import itertools
 import csv
 
-input_dir = "data/np_first_four/"
+input_dir = "data/train/" # train
+input_dir = "data/val/" # val
 
 #iterate over the whole dataset and return the max skeletons
 #It is needed to make the size of each video sequence same
@@ -97,29 +98,32 @@ for filename in os.listdir(input_dir):
                     a_vec += a_vec
 
             skeleton_sequence.append(a_vec)
-            # count = count + 1
+
+        out_labels = []
+        for i in range(find_max_skeleton(input_dir)):
+            out_labels.append(int(output_label))
+
+        video_sequence.append(out_labels)
+
+        temp_vec = [0] * 100
+        for i in range(len(skeleton_sequence),
+                       find_max_skeleton(input_dir)):  # padding 0s vector to the maximum size available
+            skeleton_sequence.append(temp_vec)  # making the video size for each activity same
+        video_sequence.append(skeleton_sequence)
+
+        train_list.append(video_sequence)
+        # count = count + 1
     except:
         print("no value in the dataset")
-    out_labels = []
-    for i in range(find_max_skeleton(input_dir)):
-        out_labels.append(int(output_label))
 
-    video_sequence.append(out_labels)
-
-    temp_vec = [0] * 100
-    for i in range(len(skeleton_sequence), find_max_skeleton(input_dir)): #padding 0s vector to the maximum size available
-        skeleton_sequence.append(temp_vec)                                # making the video size for each activity same
-    video_sequence.append(skeleton_sequence)
-
-    train_list.append(video_sequence)
     file_count += 1
 
 # print(str(len(train_list[0][1])))
 # print(train_list[0][1][0])
 # Writing into csv in order to be read as a dataframe later on.
-with open('data/skel_train.tsv', 'w') as result_file:
+with open('data/val.tsv', 'w') as result_file:
     wr = csv.writer(result_file, quoting=csv.QUOTE_NONE, delimiter="\t")
     for line in train_list:
         wr.writerow((line[0],line[1]))
-print("CSV file created with the name of skel_train.csv")
+print("CSV file created with the name of train.csv")
 
