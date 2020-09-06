@@ -57,7 +57,8 @@ class TransformerModel(nn.Module):
             mask = self._generate_square_subsequent_mask(len(src)).to(device)
             self.src_mask = mask
 
-        src = self.encoder(src) * math.sqrt(self.ninp) #self attention mechanism
+        # src = self.encoder(src) * math.sqrt(self.ninp) #self attention mechanism
+        src = src * math.sqrt(self.ninp) #self attention mechanism
         src = self.pos_encoder(src)
         output = self.transformer_encoder(src, self.src_mask)
         output = self.decoder(output)

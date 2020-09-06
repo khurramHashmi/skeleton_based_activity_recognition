@@ -1,4 +1,4 @@
-from skeleton_data_reader import SkeletonsDataset
+from data_source_reader import SkeletonsDataset
 from model_transformer import *
 import torch
 import time
@@ -11,7 +11,7 @@ def train():
     start_time = time.time()
 
     # for batch, i in enumerate(range(0, 5 - 1, bptt)): # Size will be the number of videos in the sequence
-    batch=200
+    batch=20
 
     for data, targets in train_loader:
 
@@ -28,6 +28,7 @@ def train():
 
         total_loss += loss.item()
         log_interval = 200
+        batch += 5
         if batch % log_interval == 0 and batch > 0:
             cur_loss = total_loss / log_interval
             elapsed = time.time() - start_time
@@ -38,6 +39,7 @@ def train():
                     elapsed * 1000 / log_interval,
                     cur_loss, math.exp(cur_loss)))
             total_loss = 0
+            batch = 20
             start_time = time.time()
 
 
@@ -61,7 +63,7 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 kwargs = {'num_workers': 1, 'pin_memory': True} if device == 'cuda' else {}
 
 # Defining Model with parameters
-ntokens = 60 # the size of vocabulary #change number of tokens from 15400 to 154
+ntokens = 40860 # the size of vocabulary #change number of tokens from 15400 to 154
 emsize = 100 # embedding dimension
 nhid = 100 # the dimension of the feedforward network model in nn.TransformerEncoder
 nlayers = 2 # the number of nn.TransformerEncoderLayer in nn.TransformerEncoder
@@ -112,3 +114,10 @@ for epoch in range(1,  max_epochs):
         best_model = model
 
     scheduler.step()
+
+
+test_loss = evaluate(best_model)
+print('=' * 89)
+print('| End of training | test loss {:5.2f} | test ppl {:8.2f}'.format(
+    test_loss, math.exp(test_loss)))
+print('=' * 89)

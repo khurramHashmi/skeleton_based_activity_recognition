@@ -66,7 +66,7 @@ for filename in os.listdir(input_dir):
     #since label for all sequences is same
     output_label = skeleton_data["file_name"][len(skeleton_data["file_name"]) - 2]
     output_label += skeleton_data["file_name"][len(skeleton_data["file_name"]) - 1]
-    print(output_label)
+
     try:
         for frame_count in range(len(skeleton_data["nbodys"])):
             # person_count = 0
@@ -106,8 +106,9 @@ for filename in os.listdir(input_dir):
         video_sequence.append(out_labels)
 
         temp_vec = [0] * 100
-        for i in range(len(skeleton_sequence),find_max_skeleton(input_dir)):  # padding 0s vector to the maximum size available
-            skeleton_sequence.append(temp_vec)                                # making the video size for each activity same
+        for i in range(len(skeleton_sequence),
+                       find_max_skeleton(input_dir)):  # padding 0s vector to the maximum size available
+            skeleton_sequence.append(temp_vec)  # making the video size for each activity same
         video_sequence.append(skeleton_sequence)
 
         train_list.append(video_sequence)
@@ -125,4 +126,3 @@ with open('data/val.tsv', 'w') as result_file:
     for line in train_list:
         wr.writerow((line[0],line[1]))
 print("CSV file created with the name of train.csv")
-
