@@ -14,6 +14,7 @@ input_dir = "data/val/" # val
 #iterate over the whole dataset and return the max skeletons
 #It is needed to make the size of each video sequence same
 def find_max_skeleton(dir):
+    dir="data/train/"
     max_skel_number = 0
     for filename in os.listdir(dir):
         skeleton_data = np.load(dir + filename, allow_pickle=True).item()

@@ -21,7 +21,7 @@ class SkeletonsDataset(Dataset):
         for label in label_list:
             label = re.sub('\D', '', label)
             # for i in range(100):
-            labels.append(int(label))
+        labels.append(int(label)-1)
 
         # parsing string data as a list of vectors
         data = self.train_df[1][idx].replace("'", "").split(",")

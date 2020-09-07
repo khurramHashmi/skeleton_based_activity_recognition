@@ -1,4 +1,4 @@
-from skeleton_data_reader import SkeletonsDataset
+from data_source_reader import SkeletonsDataset
 from model_transformer import *
 import torch
 import time
@@ -11,7 +11,7 @@ def train():
     start_time = time.time()
 
     # for batch, i in enumerate(range(0, 5 - 1, bptt)): # Size will be the number of videos in the sequence
-    batch=200
+    batch=95
 
     for data, targets in train_loader:
 
@@ -21,6 +21,7 @@ def train():
         optimizer.zero_grad()
         output = model(data)
 
+        # loss = criterion(output.view(-1, ntokens), targets)
         loss = criterion(output.view(-1, ntokens), targets)
         loss.backward()
         torch.nn.utils.clip_grad_norm_(model.parameters(), 0.5)
@@ -28,6 +29,7 @@ def train():
 
         total_loss += loss.item()
         log_interval = 200
+        batch += 5
         if batch % log_interval == 0 and batch > 0:
             cur_loss = total_loss / log_interval
             elapsed = time.time() - start_time
@@ -38,6 +40,7 @@ def train():
                     elapsed * 1000 / log_interval,
                     cur_loss, math.exp(cur_loss)))
             total_loss = 0
+            batch = 20
             start_time = time.time()
 
 
@@ -54,7 +57,7 @@ def evaluate(eval_model):
             output = eval_model(data)
             output_flat = output.view(-1, ntokens)
             total_loss += len(data) * criterion(output_flat, targets).item()
-    return total_loss / (len(targets) - 1)
+    return total_loss / (len(eval_loader))
 
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -83,19 +86,7 @@ eval_dataset = SkeletonsDataset('data/val.tsv')
 eval_loader = DataLoader(eval_dataset, batch_size=eval_batch_size, shuffle=False, **kwargs)
 
 best_val_loss = float("inf")
-max_epochs = 100 # number of epochs
-
-# print(str(len(train_dataset)))
-# print(str(len(eval_dataset)))
-#
-# print(str(len(train_loader)))
-# print(str(len(eval_loader)))
-#
-# for data, target in train_loader:
-#     y = (target.shape)
-#     x = (data.shape)
-#     a,b = (data[0],target[0])
-
+max_epochs = 50 # number of epochs
 
 for epoch in range(1,  max_epochs):
     epoch_start_time = time.time()

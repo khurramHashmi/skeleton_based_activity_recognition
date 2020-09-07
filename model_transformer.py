@@ -2,6 +2,7 @@ import math
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from torch.nn import TransformerEncoder, TransformerEncoderLayer
 
 class PositionalEncoding(nn.Module):
 
@@ -28,7 +29,6 @@ class TransformerModel(nn.Module):
 
     def __init__(self, ntoken, ninp, nhead, nhid, nlayers, dropout=0.5):
         super(TransformerModel, self).__init__()
-        from torch.nn import TransformerEncoder, TransformerEncoderLayer
         self.model_type = 'Transformer'
         self.src_mask = None
         self.pos_encoder = PositionalEncoding(ninp, dropout)
@@ -36,7 +36,11 @@ class TransformerModel(nn.Module):
         self.transformer_encoder = TransformerEncoder(encoder_layers, nlayers)
         self.encoder = nn.Embedding(ntoken, ninp)
         self.ninp = ninp
-        self.decoder = nn.Linear(ninp, ntoken)
+        self.decoder = nn.Linear(227 * ninp, ntoken)
+
+        self.dense = nn.Linear(ntoken, ntoken)
+        self.dropout = nn.Dropout(0.2)
+        self.out_proj = nn.Linear(ntoken, 1)
 
         self.init_weights()
 
@@ -57,8 +61,17 @@ class TransformerModel(nn.Module):
             mask = self._generate_square_subsequent_mask(len(src)).to(device)
             self.src_mask = mask
 
-        src = self.encoder(src) * math.sqrt(self.ninp) #self attention mechanism
+        src = src * math.sqrt(self.ninp) #self attention mechanism
         src = self.pos_encoder(src)
         output = self.transformer_encoder(src, self.src_mask)
+        output = output.view(-1)
         output = self.decoder(output)
+
+
+
+        # output = self.dropout(output)
+        # output = self.dense(output)
+        # output = torch.tanh(output)
+        # output = self.dropout(output)
+        # output = self.out_proj(output)
         return output
