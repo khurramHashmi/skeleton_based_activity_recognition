@@ -36,12 +36,11 @@ class TransformerModel(nn.Module):
         self.transformer_encoder = TransformerEncoder(encoder_layers, nlayers)
         self.encoder = nn.Embedding(ntoken, ninp)
         self.ninp = ninp
-        self.decoder = nn.Linear(227 * ninp, ntoken)
+        self.decoder = nn.Linear(5 * 100 * ninp, 5*ntoken)
 
-        self.dense = nn.Linear(ntoken, ntoken)
-        self.dropout = nn.Dropout(0.2)
-        self.out_proj = nn.Linear(ntoken, 1)
-
+        # self.dense = nn.Linear(ntoken, ntoken)
+        # self.dropout = nn.Dropout(0.2)
+        # self.out_proj = nn.Linear(ntoken, 1)
         self.init_weights()
 
     def _generate_square_subsequent_mask(self, sz):

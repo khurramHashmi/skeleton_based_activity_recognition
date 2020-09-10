@@ -8,18 +8,25 @@ import pandas as pd
 import itertools
 import csv
 
-input_dir = "data/train/" # train
-input_dir = "data/val/" # val
+input_dir = "./data/cross_view/train/" # train
+input_dir = "./data/cross_view/val/" # val
 
 #iterate over the whole dataset and return the max skeletons
 #It is needed to make the size of each video sequence same
-def find_max_skeleton(dir):
-    dir="data/train/"
-    max_skel_number = 0
-    for filename in os.listdir(dir):
-        skeleton_data = np.load(dir + filename, allow_pickle=True).item()
-        max_skel_number = len(skeleton_data["nbodys"]) if len(skeleton_data["nbodys"]) > max_skel_number else max_skel_number
-    return max_skel_number
+# def find_max_skeleton(dir):
+#     # dir="data/train/"
+#     max_skel_number = 0
+#     for filename in os.listdir(dir):
+#         skeleton_data = np.load(dir + filename, allow_pickle=True).item()
+#         max_skel_number = len(skeleton_data["nbodys"]) if len(skeleton_data["nbodys"]) > max_skel_number else max_skel_number
+#     return max_skel_number
+
+max_skel_num = 100
+check_max = 0
+# print(find_max_skeleton(input_dir))
+# input_dir = "./data/cross_view/val/" # val
+# print(find_max_skeleton(input_dir))
+
 
 frame_count = 0
 connecting_joint = {
@@ -52,7 +59,7 @@ connecting_joint = {
 
 
 file_count = 0
-
+count_prob = 0
 train_list = []
 
 for filename in os.listdir(input_dir):
@@ -67,7 +74,6 @@ for filename in os.listdir(input_dir):
     #since label for all sequences is same
     output_label = skeleton_data["file_name"][len(skeleton_data["file_name"]) - 2]
     output_label += skeleton_data["file_name"][len(skeleton_data["file_name"]) - 1]
-    print(output_label)
     try:
         for frame_count in range(len(skeleton_data["nbodys"])):
             # person_count = 0
@@ -101,20 +107,26 @@ for filename in os.listdir(input_dir):
             skeleton_sequence.append(a_vec)
 
         out_labels = []
-        for i in range(find_max_skeleton(input_dir)):
+        for i in range(max_skel_num): #instead of calling function again, just replace it with a variable
             out_labels.append(int(output_label))
 
         video_sequence.append(out_labels)
 
+        if len(skeleton_sequence) > check_max:
+            check_max = len(skeleton_sequence)
+            print(check_max)
+
         temp_vec = [0] * 100
-        for i in range(len(skeleton_sequence),find_max_skeleton(input_dir)):  # padding 0s vector to the maximum size available
-            skeleton_sequence.append(temp_vec)                                # making the video size for each activity same
-        video_sequence.append(skeleton_sequence)
+        for i in range(len(skeleton_sequence),max_skel_num):  # padding 0s vector to the maximum size available
+            skeleton_sequence.append(temp_vec)                 # making the video size for each activity same
+
+        video_sequence.append(skeleton_sequence[0:100])
 
         train_list.append(video_sequence)
         # count = count + 1
     except:
-        print("no value in the dataset")
+        count_prob +=1
+        # print("no value in the dataset")
 
     file_count += 1
 
@@ -125,5 +137,8 @@ with open('data/val.tsv', 'w') as result_file:
     wr = csv.writer(result_file, quoting=csv.QUOTE_NONE, delimiter="\t")
     for line in train_list:
         wr.writerow((line[0],line[1]))
-print("CSV file created with the name of train.csv")
+print("CSV file created with the name of val.tsv")
+print("PROBLEM IN FILES : ", str(count_prob))
+print("MAX COUNT : ", str(max_skel_num))
+
 
