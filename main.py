@@ -16,7 +16,7 @@ def train(step_count_tb):
     model.train() # Turn on the train mode
     total_loss = 0.
     start_time = time.time()
-
+    sum_curl_loss = 0
     # for batch, i in enumerate(range(0, 5 - 1, bptt)): # Size will be the number of videos in the sequence
     batch=5
     for data, targets in train_loader:
@@ -41,12 +41,12 @@ def train(step_count_tb):
             class_correct[label] += c[i].item()
             class_total[label] += 1
 
-
         total_loss += loss.item()
-        log_interval = 200
+        log_interval = 30
         batch += 5
         if batch % log_interval == 0 and batch > 0:
             cur_loss = total_loss / log_interval
+            sum_curl_loss += cur_loss
             elapsed = time.time() - start_time
             print('| epoch {:3d} | {:5d}/{:5d} batches | '
                   'lr {:02.2f} | ms/batch {:5.2f} | '
@@ -54,12 +54,13 @@ def train(step_count_tb):
                     epoch, batch, len(data), scheduler.get_lr()[0],
                     elapsed * 1000 / log_interval,
                     cur_loss, math.exp(cur_loss)))
-            write_to_graph('train/loss',cur_loss,writer,step_count_tb)
             total_loss = 0
             step_count_tb+=1
             batch = 5
             start_time = time.time()
-    calculate_accuracy()
+    write_to_graph('train/loss', sum_curl_loss/len(train_loader), writer, step_count_tb)
+    calculate_accuracy("train",epoch)
+
 def evaluate(eval_model):
     eval_model.eval() # Turn on the evaluation mode
     total_loss = 0.
@@ -74,31 +75,38 @@ def evaluate(eval_model):
         total_samples = (len(eval_loader) * eval_batch_size)
     return total_loss / total_samples
 
-def classify_evaluate(eval_model):
-    eval_model.eval() # Turn on the evaluation mode
-    total_loss = 0.
+# def classify_evaluate(eval_model):
+#     eval_model.eval() # Turn on the evaluation mode
+#     total_loss = 0.
+#
+#     with torch.no_grad():
+#         for data, targets in eval_loader:
+#             # giving the tensors to Cuda
+#             data = data.to(device)
+#             targets = targets.view(-1).to(device) # Linearize the target tensor to match the shape
+#             output = eval_model(data)
+#             output_flat = output.view(-1, ntokens)
+#             total_loss += len(data) * criterion(output_flat, targets).item()
+#             _, predicted = torch.max(output_flat, 1)
+#             c = (predicted == targets).squeeze()
+#             for i in range(eval_batch_size):
+#                 label = targets[i]
+#                 class_correct[label] += c[i].item()
+#                 class_total[label] += 1
+#
+#     calculate_accuracy()
+#     return total_loss / (len(eval_loader)*eval_batch_size)
 
-    with torch.no_grad():
-        for data, targets in eval_loader:
-            # giving the tensors to Cuda
-            data = data.to(device)
-            targets = targets.view(-1).to(device) # Linearize the target tensor to match the shape
-            output = eval_model(data)
-            output_flat = output.view(-1, ntokens)
-            total_loss += len(data) * criterion(output_flat, targets).item()
-            _, predicted = torch.max(output_flat, 1)
-            c = (predicted == targets).squeeze()
-            for i in range(eval_batch_size):
-                label = targets[i]
-                class_correct[label] += c[i].item()
-                class_total[label] += 1
-
-    calculate_accuracy()
-    return total_loss / (len(eval_loader)*eval_batch_size)
-
-def calculate_accuracy():
+def calculate_accuracy(split,epoch):
+    acc_sum = 0
     for i in range(60):
-        print('%d Accuracy of %5s : %2d %%' % (i, classes[i], 100 * class_correct[i] / class_total[i]))
+        class_accuracy = 100 * class_correct[i] / class_total[i]
+        error_rate = 100 - class_accuracy
+        acc_sum +=class_accuracy
+        print('%d Accuracy of %5s : %2d %%' % (i, classes[i], class_accuracy))
+
+    print('Mean Average Accuracy of Camera View : %2f %%' % (acc_sum/60))
+    write_to_graph(split+'/Accuracy', acc_sum/60, writer, epoch)
 
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -114,7 +122,7 @@ classes = ["drink water", "eat meal", "brush teeth", "brush hair", "drop", "pick
 
 train_batch_size = 5
 
-train_dataset = SkeletonsDataset('data/train.tsv')
+train_dataset = SkeletonsDataset('data/old_train_with180_samples.tsv')
 train_loader = DataLoader(train_dataset, batch_size=train_batch_size, shuffle=False, **kwargs)
 #
 eval_batch_size = 5
@@ -138,7 +146,7 @@ scheduler = torch.optim.lr_scheduler.StepLR(optimizer, 1.0, gamma=0.95)
 
 
 best_val_loss = float("inf")
-max_epochs = 10 # number of epochs
+max_epochs = 3 # number of epochs
 step_count_tb = 1 # xaxis for calculating loss value for tensorboard
 
 
@@ -169,7 +177,7 @@ for epoch in range(1,  max_epochs):
             'model_state_dict': best_model.state_dict(),
             'optimizer_state_dict': optimizer.state_dict(),
             'loss': best_val_loss
-        }, output_path)
+        }, epoch_output_path)
     scheduler.step()
 
 # loading the model again to evaluate for the test set.
