@@ -1,15 +1,20 @@
+import time
+import torch
+import wandb
+import argparse
+from utils import *
 from data_source_reader import SkeletonsDataset
 from model_transformer import *
-import torch
 import torch.nn.functional as F
-import time
-from utils import *
 from torch.utils.tensorboard import SummaryWriter
 from torch.utils.data import DataLoader, Dataset
 
-writer = SummaryWriter()
+#writer = SummaryWriter()
 class_correct = list(0. for i in range(60))
 class_total = list(0. for i in range(60))
+
+# env vairables
+os.environ["WANDB_API_KEY"] = "API KEY HERE"
 
 def train(step_count_tb):
 
@@ -36,12 +41,13 @@ def train(step_count_tb):
         #To Calculate classification
         _, predicted = torch.max(output.view(-1, ntokens), 1)
         c = (predicted == targets).squeeze()
-        for i in range(eval_batch_size):
+        for i in range(train_batch_size):
             label = targets[i]
             class_correct[label] += c[i].item()
             class_total[label] += 1
 
         total_loss += loss.item()
+        wandb.log({"train_loss: ": loss.item()})
         log_interval = 30
         batch += 5
         if batch % log_interval == 0 and batch > 0:
@@ -58,9 +64,11 @@ def train(step_count_tb):
             step_count_tb+=1
             batch = 5
             start_time = time.time()
-    write_to_graph('train/loss', sum_curl_loss/len(train_loader), writer, step_count_tb)
-    calculate_accuracy("train",epoch)
-
+    
+    train_acc = calculate_accuracy(class_correct, class_total)
+    return sum_curl_loss/len(train_loader), train_acc
+    #write_to_graph('train/loss', sum_curl_loss/len(train_loader), writer, step_count_tb)
+    
 def evaluate(eval_model):
     eval_model.eval() # Turn on the evaluation mode
     total_loss = 0.
@@ -71,9 +79,12 @@ def evaluate(eval_model):
             data = data.to(device)
             targets = targets.view(-1).to(device) # Linearize the target tensor to match the shape
             output = eval_model(data)
+            calculate_accuracy(output, targets)
             total_loss += len(data) * criterion(output.view(-1, ntokens), targets).item()
         total_samples = (len(eval_loader) * eval_batch_size)
-    return total_loss / total_samples
+    
+    val_acc = calculate_accuracy(class_correct, class_total)
+    return total_loss / total_samples, val_acc
 
 # def classify_evaluate(eval_model):
 #     eval_model.eval() # Turn on the evaluation mode
@@ -97,20 +108,41 @@ def evaluate(eval_model):
 #     calculate_accuracy()
 #     return total_loss / (len(eval_loader)*eval_batch_size)
 
-def calculate_accuracy(split,epoch):
+def calculate_accuracy(output, targets):
+    
+    _, predicted = torch.max(output.view(-1, ntokens), 1)
+    c = (predicted == targets).squeeze()
+    class_correct = list(0. for i in range(60))
+    class_total = list(0. for i in range(60))
+
+    for i in range(eval_batch_size):
+        label = targets[i]
+        class_correct[label] += c[i].item()
+        class_total[label] += 1
+
     acc_sum = 0
-    for i in range(60):
+    for i in range(len(classes)):
         class_accuracy = 100 * class_correct[i] / class_total[i]
-        error_rate = 100 - class_accuracy
+        #error_rate = 100 - class_accuracy
         acc_sum +=class_accuracy
         print('%d Accuracy of %5s : %2d %%' % (i, classes[i], class_accuracy))
 
-    print('Mean Average Accuracy of Camera View : %2f %%' % (acc_sum/60))
-    write_to_graph(split+'/Accuracy', acc_sum/60, writer, epoch)
+    wandb.sklearn.plot_confusion_matrix(targets, predicted, labels=classes)    
+    return acc_sum/len(classes)#, error_rate
+    #print('Mean Average Accuracy of Camera View : %2f %%' % (acc_sum/60))
+    #write_to_graph(split+'/Accuracy', acc_sum/60, writer, epoch)
 
 
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-kwargs = {'num_workers': 1, 'pin_memory': True} if device == 'cuda' else {}
+
+parser = argparse.ArgumentParser(description="Skeleton Classification Training Script")
+parser.add_argument("-lr", "--learning_rate", required=False, default=5.0, type=int, help="Learning rate of model. Default 0.001")
+parser.add_argument("-b", "--batch_size", required=True, default=5, type=int, help="Batch Size for training")
+parser.add_argument("-eb", "--eval_batch_size", required=True, default=5, type=int, help="Batch Size for evaluation")
+parser.add_argument("-tr_d", "--train_data", default='data/old_train_with180_samples.tsv', required=True, help='Path to training data')
+parser.add_argument("-ev_d", "--eval_data", default='data/old_train_with180_samples.tsv', required=True, help='Path to eval data')
+parser.add_argument("-ts_d", "--test_data",  help='Path to test data')
+parser.add_argument("-e", "--epochs", type=int, default=3, help='Number of epochs to train model for')
+args = parser.parse_args()    
 
 classes = ["drink water", "eat meal", "brush teeth", "brush hair", "drop", "pick up", "throw", "sit down", "stand up", "clapping", "reading", "writing"
            ,"tear up paper", "put on jacket", "take off jacket", "put on a shoe", "take off a shoe", "put on glasses", "take off glasses", "put on a hat/cap",
@@ -120,13 +152,19 @@ classes = ["drink water", "eat meal", "brush teeth", "brush hair", "drop", "pick
            "nausea/vomiting", "fan self", "punch/slap",	"kicking", "pushing", "pat on back", "point finger", "hugging", "giving object", "touch pocket", "shaking hands",
            "walking towards", "walking apart"]
 
-train_batch_size = 5
+# initalize wandb 
+wandb.init(project="Skeleton Classification", config=args)
 
-train_dataset = SkeletonsDataset('data/old_train_with180_samples.tsv')
-train_loader = DataLoader(train_dataset, batch_size=train_batch_size, shuffle=False, **kwargs)
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+kwargs = {'num_workers': 1, 'pin_memory': True} if device == 'cuda' else {}
+
+train_batch_size = args.batch_size
+
+train_dataset = SkeletonsDataset(args.train_data)
+train_loader = DataLoader(train_dataset, batch_size=train_batch_size, shuffle=True, **kwargs)
 #
-eval_batch_size = 5
-eval_dataset = SkeletonsDataset('data/old_train_with180_samples.tsv')
+eval_batch_size = args.eval_batch_size
+eval_dataset = SkeletonsDataset(args.eval_data)
 eval_loader = DataLoader(eval_dataset, batch_size=eval_batch_size, shuffle=False, **kwargs)
 
 # Defining Model with parameters
@@ -139,16 +177,12 @@ dropout = 0.2 # the dropout value
 model = TransformerModel(ntokens, emsize, nhead, nhid, nlayers, dropout).to(device)
 
 criterion = nn.CrossEntropyLoss()
-lr = 5.0 # learning rate
-optimizer = torch.optim.SGD(model.parameters(), lr=lr)
+optimizer = torch.optim.SGD(model.parameters(), lr=args.learning_rate)
 scheduler = torch.optim.lr_scheduler.StepLR(optimizer, 1.0, gamma=0.95)
 
-
-
 best_val_loss = float("inf")
-max_epochs = 3 # number of epochs
+max_epochs = args.epochs # number of epochs
 step_count_tb = 1 # xaxis for calculating loss value for tensorboard
-
 
 
 # Saving and writing model as a state_dict
@@ -159,15 +193,15 @@ create_dir(output_path) # creating the directory where epochs will be saved
 for epoch in range(1,  max_epochs):
     epoch_start_time = time.time()
     epoch_output_path = output_path +"/epoch_"+str(epoch_start_time)
-    train(step_count_tb)
-    val_loss = evaluate(model)
-
+    tr_loss, tr_acc = train(step_count_tb)
+    val_loss, val_acc = evaluate(model)
+    wandb.log({"loss":tr_loss, "training_acc":tr_acc, "val_loss":val_loss, "val_acc":val_acc, "learing_rate":scheduler.get_lr()}, step=epoch)
     print('-' * 89)
     print('| end of epoch {:3d} | time: {:5.2f}s | valid loss {:5.4f} | '
-          'valid ppl {:8.2f}'.format(epoch, (time.time() - epoch_start_time),
-                                     val_loss, math.exp(val_loss)))
+        'valid ppl {:8.2f}'.format(epoch, (time.time() - epoch_start_time),
+                                    val_loss, math.exp(val_loss)))
     print('-' * 89)
-    write_to_graph('Val/loss', val_loss, writer, epoch)
+    #write_to_graph('Val/loss', val_loss, writer, epoch)
     if val_loss < best_val_loss:
         best_val_loss = val_loss
         best_model = model
