@@ -73,7 +73,7 @@ def train(step_count_tb):
             batch = 10
             start_time = time.time()
     
-    wandb.sklearn.plot_confusion_matrix(np.array(targets_), np.array(predicted_), labels=classes)
+    # wandb.sklearn.plot_confusion_matrix(np.array(targets_), np.array(predicted_), labels=classes)
     train_acc = calculate_accuracy(class_correct, class_total)
     return sum_curl_loss/len(train_loader), train_acc
     #write_to_graph('train/loss', sum_curl_loss/len(train_loader), writer, step_count_tb)
@@ -123,7 +123,7 @@ def evaluate(eval_model, eval_loader, draw_img=False, visualize=False, out_path=
 
         total_samples = (len(eval_loader) * args.eval_batch_size)
     
-    wandb.sklearn.plot_confusion_matrix(np.array(targets_), np.array(predicted_), labels=classes)
+    # wandb.sklearn.plot_confusion_matrix(np.array(targets_), np.array(predicted_), labels=classes)
     
     if draw_img:
         draw_confusion_matrix(np.array(targets_), np.array(predicted_), './confusion_matrix', classes)
@@ -174,7 +174,7 @@ parser.add_argument("-eb", "--eval_batch_size",  default=10, type=int, help="Bat
 parser.add_argument("-tr_d", "--train_data", default='./xsub_train.csv', help='Path to training data')
 parser.add_argument("-ev_d", "--eval_data", default='./xsub_val.csv', help='Path to eval data')
 parser.add_argument("-ts_d", "--test_data",  help='Path to test data')
-parser.add_argument("-e", "--epochs", type=int, default=100, help='Number of epochs to train model for')
+parser.add_argument("-e", "--epochs", type=int, default=200, help='Number of epochs to train model for')
 args = parser.parse_args()
 
 classes = ["drink water", "eat meal", "brush teeth", "brush hair", "drop", "pick up", "throw", "sit down", "stand up", "clapping", "reading", "writing"
