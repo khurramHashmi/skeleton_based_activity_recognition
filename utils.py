@@ -7,7 +7,6 @@ from sklearn.metrics import f1_score
 from sklearn.utils import class_weight
 from sklearn.metrics import accuracy_score
 from sklearn.metrics import confusion_matrix
-from torch.utils.tensorboard import SummaryWriter
 from matplotlib import pyplot as plt
 
 
