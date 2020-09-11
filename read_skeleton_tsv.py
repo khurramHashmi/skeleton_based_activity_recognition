@@ -1,144 +1,177 @@
 # MAKING VECTOR FOR EACH SKELETON AS A SEQUENCE TO GIVE INPUT TO TRANSFORMER
-
-
-import numpy as np
 import os
 import sys
-import pandas as pd
-import itertools
 import csv
+import sys
+import argparse
+import itertools
+import numpy as np
+import pandas as pd
 
 input_dir = "./data/cross_view/train/" # train
 input_dir = "./data/cross_view/val/" # val
 
-#iterate over the whole dataset and return the max skeletons
-#It is needed to make the size of each video sequence same
-# def find_max_skeleton(dir):
-#     # dir="data/train/"
-#     max_skel_number = 0
-#     for filename in os.listdir(dir):
-#         skeleton_data = np.load(dir + filename, allow_pickle=True).item()
-#         max_skel_number = len(skeleton_data["nbodys"]) if len(skeleton_data["nbodys"]) > max_skel_number else max_skel_number
-#     return max_skel_number
+def gen_data(args):
+    # list of ids to be used for training subject wise view.
+    training_subjects = [
+        1, 2, 4, 5, 8, 9, 13, 14, 15, 16, 17, 18, 19, 25, 27, 28, 31, 34, 35, 38
+    ]
 
-max_skel_num = 100
-check_max = 0
-# print(find_max_skeleton(input_dir))
-# input_dir = "./data/cross_view/val/" # val
-# print(find_max_skeleton(input_dir))
+    #iterate over the whole dataset and return the max skeletons
+    #It is needed to make the size of each video sequence same
+    # def find_max_skeleton(dir):
+    #     # dir="data/train/"
+    #     max_skel_number = 0
+    #     for filename in os.listdir(dir):
+    #         skeleton_data = np.load(dir + filename, allow_pickle=True).item()
+    #         max_skel_number = len(skeleton_data["nbodys"]) if len(skeleton_data["nbodys"]) > max_skel_number else max_skel_number
+    #     return max_skel_number
 
-
-frame_count = 0
-connecting_joint = {
-    "1": [2, 13, 17],
-    "2": [21],
-    "3": [21, 4],
-    "4": [4],
-    "5": [21, 6],
-    "6": [7],
-    "7": [8],
-    "8": [22, 23],
-    "9": [21, 10],
-    "10": [11],
-    "11": [12],
-    "12": [24, 25],
-    "13": [14],
-    "14": [15],
-    "15": [16],
-    "16": [16],
-    "17": [18],
-    "18": [19],
-    "19": [20],
-    "20": [20],
-    "21": [21],
-    "22": [23],
-    "23": [23],
-    "24": [25],
-    "25": [25]
-}
+    max_skel_num = 100
+    check_max = 0
+    # print(find_max_skeleton(input_dir))
+    # input_dir = "./data/cross_view/val/" # val
+    # print(find_max_skeleton(input_dir))
 
 
-file_count = 0
-count_prob = 0
-train_list = []
+    frame_count = 0
+    connecting_joint = {
+        "1": [2, 13, 17],
+        "2": [21],
+        "3": [21, 4],
+        "4": [4],
+        "5": [21, 6],
+        "6": [7],
+        "7": [8],
+        "8": [22, 23],
+        "9": [21, 10],
+        "10": [11],
+        "11": [12],
+        "12": [24, 25],
+        "13": [14],
+        "14": [15],
+        "15": [16],
+        "16": [16],
+        "17": [18],
+        "18": [19],
+        "19": [20],
+        "20": [20],
+        "21": [21],
+        "22": [23],
+        "23": [23],
+        "24": [25],
+        "25": [25]
+    }
+    
+    file_count = 0
+    count_prob = 0
+    train_list = []
 
-for filename in os.listdir(input_dir):
-    video_sequence = []
-    # reading skeleton data
-    skeleton_data = np.load(input_dir + filename, allow_pickle=True).item()
-    skeleton_sequence = []
-    # if file_count >= 2:  # Limiting the sequences for now
-    #     break
-    skeleton_list = []
+    for filename in os.listdir(args.data_path):
 
-    #since label for all sequences is same
-    output_label = skeleton_data["file_name"][len(skeleton_data["file_name"]) - 2]
-    output_label += skeleton_data["file_name"][len(skeleton_data["file_name"]) - 1]
-    try:
-        for frame_count in range(len(skeleton_data["nbodys"])):
-            # person_count = 0
-            a_vec = []
-            for person_count in range(skeleton_data["nbodys"][0]):
-                joint_count = 1
+        video_sequence = []
+        # reading skeleton data
 
-                for joint_count in range(1, 26):
-                    rgb_body_number = "rgb_body" + str(person_count)
-                    connecting_joints = connecting_joint[str(joint_count)]
+        action_class = int(
+            filename[filename.find('A') + 1:filename.find('A') + 4])
+        subject_id = int(
+            filename[filename.find('P') + 1:filename.find('P') + 4])
+        camera_id = int(
+            filename[filename.find('C') + 1:filename.find('C') + 4])
 
-                    # Calculating distance between two fromes on each joints then take mean
-                    x1 = int(skeleton_data[rgb_body_number][frame_count][joint_count - 1][0])
-                    y1 = int(skeleton_data[rgb_body_number][frame_count][joint_count - 1][1])
-                    a_vec.append(x1)
-                    a_vec.append(y1)
+        if args.benchmark=='xsub':
+            istraining = (subject_id in training_subjects)
 
-                    # Connecting joints code for later use
-                    #             for next_joint in connecting_joints:
-                    # #                 next_joint = connecting_joint[joint_count]
-                    # #                 print(next_joint)
-                    #                 x2= int(skeleton_data[rgb_body_number][frame_count][next_joint-1][0])
-                    #                 y2= int(skeleton_data[rgb_body_number][frame_count][next_joint-1][1])
-                    #                 b_vec.append(x2)
-                    #                 b_vec.append(y2)
+            if args.part == 'train':
+                issample = istraining
+            elif args.part == 'val':
+                issample = not (istraining)
+            else:
+                raise ValueError()
 
-                    joint_count += 1
-                if skeleton_data["nbodys"][0] == 1:
-                    a_vec += a_vec
+            if not issample:
+                continue # skip the file since its not part of either training or validation
 
-            skeleton_sequence.append(a_vec)
+        skeleton_data = np.load(args.data_path + filename, allow_pickle=True).item()
+        skeleton_sequence = []
+        # if file_count >= 2:  # Limiting the sequences for now
+        #     break
+        skeleton_list = []
 
-        out_labels = []
-        for i in range(max_skel_num): #instead of calling function again, just replace it with a variable
-            out_labels.append(int(output_label))
+        #since label for all sequences is same
+        output_label = skeleton_data["file_name"][len(skeleton_data["file_name"]) - 2]
+        output_label += skeleton_data["file_name"][len(skeleton_data["file_name"]) - 1]
+        try:
+            for frame_count in range(len(skeleton_data["nbodys"])):
+                # person_count = 0
+                a_vec = []
+                for person_count in range(skeleton_data["nbodys"][0]):
+                    joint_count = 1
 
-        video_sequence.append(out_labels)
+                    for joint_count in range(1, 26):
+                        rgb_body_number = "rgb_body" + str(person_count)
+                        connecting_joints = connecting_joint[str(joint_count)]
 
-        if len(skeleton_sequence) > check_max:
-            check_max = len(skeleton_sequence)
-            print(check_max)
+                        # Calculating distance between two fromes on each joints then take mean
+                        x1 = int(skeleton_data[rgb_body_number][frame_count][joint_count - 1][0])
+                        y1 = int(skeleton_data[rgb_body_number][frame_count][joint_count - 1][1])
+                        a_vec.append(x1)
+                        a_vec.append(y1)
 
-        temp_vec = [0] * 100
-        for i in range(len(skeleton_sequence),max_skel_num):  # padding 0s vector to the maximum size available
-            skeleton_sequence.append(temp_vec)                 # making the video size for each activity same
+                        # Connecting joints code for later use
+                        #             for next_joint in connecting_joints:
+                        # #                 next_joint = connecting_joint[joint_count]
+                        # #                 print(next_joint)
+                        #                 x2= int(skeleton_data[rgb_body_number][frame_count][next_joint-1][0])
+                        #                 y2= int(skeleton_data[rgb_body_number][frame_count][next_joint-1][1])
+                        #                 b_vec.append(x2)
+                        #                 b_vec.append(y2)
 
-        video_sequence.append(skeleton_sequence[0:100])
+                        joint_count += 1
+                    if skeleton_data["nbodys"][0] == 1:
+                        a_vec += a_vec
 
-        train_list.append(video_sequence)
-        # count = count + 1
-    except:
-        count_prob +=1
-        # print("no value in the dataset")
+                skeleton_sequence.append(a_vec)
 
-    file_count += 1
+            out_labels = []
+            for i in range(max_skel_num): #instead of calling function again, just replace it with a variable
+                out_labels.append(int(output_label))
 
-# print(str(len(train_list[0][1])))
-# print(train_list[0][1][0])
-# Writing into csv in order to be read as a dataframe later on.
-with open('data/val.tsv', 'w') as result_file:
-    wr = csv.writer(result_file, quoting=csv.QUOTE_NONE, delimiter="\t")
-    for line in train_list:
-        wr.writerow((line[0],line[1]))
-print("CSV file created with the name of val.tsv")
-print("PROBLEM IN FILES : ", str(count_prob))
-print("MAX COUNT : ", str(max_skel_num))
+            video_sequence.append(out_labels)
 
+            if len(skeleton_sequence) > check_max:
+                check_max = len(skeleton_sequence)
+                print(check_max)
 
+            temp_vec = [0] * 100
+            for i in range(len(skeleton_sequence),max_skel_num):  # padding 0s vector to the maximum size available
+                skeleton_sequence.append(temp_vec)                 # making the video size for each activity same
+
+            video_sequence.append(skeleton_sequence[0:100])
+
+            train_list.append(video_sequence)
+            # count = count + 1
+        except:
+            count_prob +=1
+            # print("no value in the dataset")
+
+        file_count += 1
+
+    # print(str(len(train_list[0][1])))
+    # print(train_list[0][1][0])
+    # Writing into csv in order to be read as a dataframe later on.
+    with open(os.path.join(args.out_path, args.part+'.tsv'), 'w') as result_file:
+        wr = csv.writer(result_file, quoting=csv.QUOTE_NONE, delimiter="\t")
+        for line in train_list:
+            wr.writerow((line[0],line[1]))
+    print("CSV file created with the name of "+str(args.part)+'.tsv')
+    print("PROBLEM IN FILES : ", str(count_prob))
+    print("MAX COUNT : ", str(max_skel_num))
+
+parser = argparse.ArgumentParser(description="Dataset Generator for Skeleton Classification Model")
+parser.add_argument("-d", "--data_path", help="Path to folder containing data", required=True)
+parser.add_argument("-o", "--out_path", required=True,  help="Path to create tsv file")
+parser.add_argument("-b", "--benchmark", default='xview', help="Camera view or subject view data generation parameter")
+parser.add_argument("-p", "--part", default='train', help="Create data for train or validation")
+args = parser.parse_args()
+gen_data(args)    
