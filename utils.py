@@ -2,7 +2,7 @@ import os
 import errno
 import numpy as np
 import pandas as pd
-import seaborn as sb 
+import seaborn as sns 
 from sklearn.metrics import f1_score
 from sklearn.utils import class_weight
 from sklearn.metrics import accuracy_score
@@ -37,7 +37,7 @@ def write_to_graph(labels, value,writer,epoch):
 
 def data_distribution(labels): #function generating histograms
 
-    plot = sb.distplot(labels, axlabel='Classes', label='Class Distribution', kde=False)   
+    plot = sns.distplot(labels, axlabel='Classes', label='Class Distribution', kde=False)   
     plot.savefig("class_distribution.png")
 
 def create_dir(path):
@@ -85,7 +85,4 @@ def draw_confusion_matrix(y_true, y_pred, filename, labels, ymap=None, figsize=(
     cm.columns.name = 'Predicted'
     fig, ax = plt.subplots(figsize=figsize)
     sns.heatmap(cm, cmap= "YlGnBu", annot=annot, fmt='', ax=ax)
-    plt.savefig(filename)
-
-
-#print(latex_writer(['name','mask'], [['raphel', 'ahmed'], ['red', 'purple']], ['score', 'error']))
+    plt.savefig(filename+'.png')
