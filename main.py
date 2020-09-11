@@ -77,13 +77,28 @@ def train(step_count_tb):
     return sum_curl_loss/len(train_loader), train_acc
     #write_to_graph('train/loss', sum_curl_loss/len(train_loader), writer, step_count_tb)
     
-def evaluate(eval_model, draw_img=False):
+def evaluate(eval_model, eval_loader, draw_img=False, visualize=False, out_path=''):
+    
+    '''
+        Function to evaluate model performance
+        args:
+            -eval_model: model to be used for evaluation purposes
+            -eval_loader: data loader for data loading 
+            -draw_img: argument to draw confusion matrix at end of evaluation or not
+            -visualize: argument to draw skeletons for visualization purposes
+            -out_path: output path for visualization images
+
+        returns:
+            Loss and accuracy for given dataset
+    '''
+
     eval_model.eval() # Turn on the evaluation mode
     total_loss = 0.
     targets_ = []
     predicted_ = []
+
     with torch.no_grad():
-        for data, targets in eval_loader:
+        for data, targets, path, in eval_loader:
             # giving the tensors to Cuda
             data = data.to(device)
             targets = targets.view(-1).to(device) # Linearize the target tensor to match the shape
@@ -98,15 +113,19 @@ def evaluate(eval_model, draw_img=False):
                 label = targets[i]
                 class_correct[label] += c[i].item()
                 class_total[label] = class_total[label] + 1
-
+            
             total_loss += len(data) * criterion(output.view(-1, ntokens), targets).item()
+
+            if visualize:
+                create_dir(out_path)
+                visualize_skeleton(path, predicted, out_path)
+
         total_samples = (len(eval_loader) * args.eval_batch_size)
     
     #wandb.sklearn.plot_confusion_matrix(np.array(targets_), np.array(predicted_), labels=classes)
     
     if draw_img:
         draw_confusion_matrix(np.array(targets_), np.array(predicted_), './confusion_matrix', classes)
-    
     val_acc = calculate_accuracy(class_correct, class_total)
     return total_loss / total_samples, val_acc
 
@@ -147,8 +166,6 @@ def calculate_accuracy(class_correct, class_total):
     return acc_sum/len(classes)#, error_rate
     #write_to_graph(split+'/Accuracy', acc_sum/60, writer, epoch)
 
-
-
 parser = argparse.ArgumentParser(description="Skeleton Classification Training Script")
 parser.add_argument("-lr", "--learning_rate", default=5.0, type=float, help="Learning rate of model. Default 0.001")
 parser.add_argument("-b", "--batch_size",  default=5, type=int, help="Batch Size for training")
@@ -173,10 +190,8 @@ classes = ["drink water", "eat meal", "brush teeth", "brush hair", "drop", "pick
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 kwargs = {'num_workers': 1, 'pin_memory': True} if device == 'cuda' else {}
 
-
 train_dataset = SkeletonsDataset(args.train_data)
 train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=False, **kwargs)
-
 
 eval_dataset = SkeletonsDataset(args.eval_data)
 eval_loader = DataLoader(eval_dataset, batch_size=args.eval_batch_size, shuffle=False, **kwargs)
@@ -210,9 +225,9 @@ for epoch in range(1,  max_epochs):
     epoch_output_path = output_path +"/epoch_"+str(epoch_start_time)
     tr_loss, tr_acc = train(step_count_tb)
     if epoch == max_epochs-1:
-        val_loss, val_acc = evaluate(model, draw_img=True)
+        val_loss, val_acc = evaluate(model, eval_loader, draw_img=True, visualize=True, out_path='./visual')
     else:
-        val_loss, val_acc = evaluate(model)
+        val_loss, val_acc = evaluate(model, eval_loader)
     
     output_log.append('train_loss: '+str(tr_loss)+'\t'+ 'training_acc: '+str(tr_acc) + '\t' + 'val_loss: ' +str(val_loss) + '\t' + 'val_acc: '+str(val_acc) + '\n')    
     #wandb.log({"train_loss":tr_loss, "training_acc":tr_acc, "val_loss":val_loss, "val_acc":val_acc, "learing_rate":scheduler.get_lr()[0]})
