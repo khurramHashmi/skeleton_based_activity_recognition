@@ -3,18 +3,19 @@ import torch
 import wandb
 import argparse
 from utils import *
-from data_source_reader import SkeletonsDataset
 from model_transformer import *
 import torch.nn.functional as F
-from torch.utils.tensorboard import SummaryWriter
+from data_source_reader import SkeletonsDataset
 from torch.utils.data import DataLoader, Dataset
+from torch.utils.tensorboard import SummaryWriter
 
-#writer = SummaryWriter()
 class_correct = list(0. for i in range(60))
 class_total = list(0. for i in range(60))
 
 # env vairables
-os.environ["WANDB_API_KEY"] = "cbf5ed4387d24dbdda68d6de22de808c592f792e"
+#os.environ["WANDB_MODE"] = "dryrun"
+#os.environ["WANDB_API_KEY"] = "cbf5ed4387d24dbdda68d6de22de808c592f792e"
+#os.environ["WANDB_ENTITY"] = "khurram"
 
 def train(step_count_tb):
 
@@ -27,6 +28,8 @@ def train(step_count_tb):
     sum_curl_loss = 0
     # for batch, i in enumerate(range(0, 5 - 1, bptt)): # Size will be the number of videos in the sequence
     batch=5
+    targets_ = []
+    predicted_ = []
     for data, targets in train_loader:
 
         data = data.to(device)
@@ -34,9 +37,10 @@ def train(step_count_tb):
 
         optimizer.zero_grad()
         output = model(data)
-
+        targets_.append(targets)
         #Calculating accuracies
         _, predicted = torch.max(output.view(-1, ntokens), 1)
+        predicted_.append(predicted)
         c = (predicted == targets).squeeze()
         for i in range(args.batch_size):
             label = targets[i]
@@ -68,23 +72,27 @@ def train(step_count_tb):
             batch = 5
             start_time = time.time()
     
+    #wandb.sklearn.plot_confusion_matrix(np.array(targets_), np.array(predicted_), labels=classes)
     train_acc = calculate_accuracy(class_correct, class_total)
     return sum_curl_loss/len(train_loader), train_acc
     #write_to_graph('train/loss', sum_curl_loss/len(train_loader), writer, step_count_tb)
     
-def evaluate(eval_model):
+def evaluate(eval_model, draw_img=False):
     eval_model.eval() # Turn on the evaluation mode
     total_loss = 0.
-
+    targets_ = []
+    predicted_ = []
     with torch.no_grad():
         for data, targets in eval_loader:
             # giving the tensors to Cuda
             data = data.to(device)
             targets = targets.view(-1).to(device) # Linearize the target tensor to match the shape
+            targets_.append(targets)
             output = eval_model(data)
 
             # Calculating accuracies
             _, predicted = torch.max(output.view(-1, ntokens), 1)
+            predicted_.append(predicted)
             c = (predicted == targets).squeeze()
             for i in range(args.batch_size):
                 label = targets[i]
@@ -93,9 +101,13 @@ def evaluate(eval_model):
 
             total_loss += len(data) * criterion(output.view(-1, ntokens), targets).item()
         total_samples = (len(eval_loader) * args.eval_batch_size)
-
+    
+    #wandb.sklearn.plot_confusion_matrix(np.array(targets_), np.array(predicted_), labels=classes)
+    
+    if draw_img:
+        draw_confusion_matrix(np.array(targets_), np.array(predicted_), './confusion_matrix', classes)
+    
     val_acc = calculate_accuracy(class_correct, class_total)
-
     return total_loss / total_samples, val_acc
 
 # def classify_evaluate(eval_model):
@@ -132,9 +144,7 @@ def calculate_accuracy(class_correct, class_total):
     print('Mean Average Accuracy of Camera View : %2f %%' % (acc_sum/60))
     print('=' * 89)
 
-    # wandb.sklearn.plot_confusion_matrix(targets, predicted, labels=classes)
     return acc_sum/len(classes)#, error_rate
-
     #write_to_graph(split+'/Accuracy', acc_sum/60, writer, epoch)
 
 
@@ -158,17 +168,17 @@ classes = ["drink water", "eat meal", "brush teeth", "brush hair", "drop", "pick
            "walking towards", "walking apart"]
 
 # initalize wandb 
-wandb.init(project="Skeleton Classification", config=args)
+#wandb.init(reinit=True)
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 kwargs = {'num_workers': 1, 'pin_memory': True} if device == 'cuda' else {}
 
 
-train_dataset = SkeletonsDataset(args.train_data, args.batch_size)
+train_dataset = SkeletonsDataset(args.train_data)
 train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=False, **kwargs)
 
 
-eval_dataset = SkeletonsDataset(args.eval_data, args.eval_batch_size)
+eval_dataset = SkeletonsDataset(args.eval_data)
 eval_loader = DataLoader(eval_dataset, batch_size=args.eval_batch_size, shuffle=False, **kwargs)
 
 # Defining Model with parameters
@@ -188,22 +198,33 @@ best_val_loss = float("inf")
 max_epochs = args.epochs # number of epochs
 step_count_tb = 1 # xaxis for calculating loss value for tensorboard
 
-
 # Saving and writing model as a state_dict
 # Training procedure starts
 time_check = time.time()
 output_path = "./logs/output_"+str(time_check)
 create_dir(output_path) # creating the directory where epochs will be saved
+output_log = []
+
 for epoch in range(1,  max_epochs):
     epoch_start_time = time.time()
     epoch_output_path = output_path +"/epoch_"+str(epoch_start_time)
     tr_loss, tr_acc = train(step_count_tb)
-    val_loss, val_acc = evaluate(model)
-    wandb.log({"train_loss":tr_loss, "training_acc":tr_acc, "val_loss":val_loss, "val_acc":val_acc, "learing_rate":scheduler.get_lr()[0]})
+    if epoch == max_epochs-1:
+        val_loss, val_acc = evaluate(model, draw_img=True)
+    else:
+        val_loss, val_acc = evaluate(model)
+    
+    output_log.append('train_loss: '+str(tr_loss)+'\t'+ 'training_acc: '+str(tr_acc) + '\t' + 'val_loss: ' +str(val_loss) + '\t' + 'val_acc: '+str(val_acc) + '\n')    
+    #wandb.log({"train_loss":tr_loss, "training_acc":tr_acc, "val_loss":val_loss, "val_acc":val_acc, "learing_rate":scheduler.get_lr()[0]})
     print('-' * 89)
     print('| end of epoch {:3d} | time: {:5.2f}s | valid loss {:5.4f} | '
         'valid ppl {:8.2f}'.format(epoch, (time.time() - epoch_start_time),
                                     val_loss, math.exp(val_loss)))
+
+    output_log.append('| end of epoch {:3d} | time: {:5.2f}s | valid loss {:5.4f} | '
+        'valid ppl {:8.2f}'.format(epoch, (time.time() - epoch_start_time),
+                                    val_loss, math.exp(val_loss)))
+    output_log.append('\n')
     print('-' * 89)
     #write_to_graph('Val/loss', val_loss, writer, epoch)
     if val_loss < best_val_loss:
@@ -218,6 +239,8 @@ for epoch in range(1,  max_epochs):
         }, epoch_output_path)
     scheduler.step()
 
+with open("log.txt", "w") as outfile:
+    outfile.write("\n".join(output_log))
 # loading the model again to evaluate for the test set.
 # checkpoint = torch.load("output/out_model_camera_view_train_1599686144.9230924")
 # model.load_state_dict(checkpoint['model_state_dict'])
