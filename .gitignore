@@ -3,3 +3,4 @@ wandb/*
 wandb
 *.pyc
 logs/*
+*.csv
