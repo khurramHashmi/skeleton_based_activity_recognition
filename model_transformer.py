@@ -36,7 +36,7 @@ class TransformerModel(nn.Module):
         self.transformer_encoder = TransformerEncoder(encoder_layers, nlayers)
         self.encoder = nn.Embedding(ntoken, ninp)
         self.ninp = ninp
-        self.decoder = nn.Linear(5 * 100 * ninp, 5*ntoken)
+        self.decoder = nn.Linear(10 * 100 * ninp, 10*ntoken)
 
         # self.dense = nn.Linear(ntoken, ntoken)
         # self.dropout = nn.Dropout(0.2)

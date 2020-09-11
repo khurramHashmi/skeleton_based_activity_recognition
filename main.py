@@ -14,8 +14,9 @@ class_total = list(0. for i in range(60))
 
 # env vairables
 #os.environ["WANDB_MODE"] = "dryrun"
-#os.environ["WANDB_API_KEY"] = "cbf5ed4387d24dbdda68d6de22de808c592f792e"
-#os.environ["WANDB_ENTITY"] = "khurram"
+os.environ["WANDB_API_KEY"] = "cbf5ed4387d24dbdda68d6de22de808c592f792e"
+os.environ["WANDB_ENTITY"] = "khurram"
+os.environ["WANDB_ENTITY"] = "khurram"
 
 def train(step_count_tb):
 
@@ -27,10 +28,10 @@ def train(step_count_tb):
     start_time = time.time()
     sum_curl_loss = 0
     # for batch, i in enumerate(range(0, 5 - 1, bptt)): # Size will be the number of videos in the sequence
-    batch=5
+    batch=10
     targets_ = []
     predicted_ = []
-    for data, targets in train_loader:
+    for data, targets, path in train_loader:
 
         data = data.to(device)
         targets = targets.view(-1).to(device)
@@ -55,8 +56,8 @@ def train(step_count_tb):
         optimizer.step()
         total_loss += loss.item()
         sum_curl_loss += loss.item()
-        log_interval = 30
-        batch += 5
+        log_interval = 500
+        batch += 10
         if batch % log_interval == 0 and batch > 0:
             cur_loss = total_loss / log_interval
 
@@ -69,10 +70,10 @@ def train(step_count_tb):
                     cur_loss, math.exp(cur_loss)))
             total_loss = 0
             step_count_tb+=1
-            batch = 5
+            batch = 10
             start_time = time.time()
     
-    #wandb.sklearn.plot_confusion_matrix(np.array(targets_), np.array(predicted_), labels=classes)
+    wandb.sklearn.plot_confusion_matrix(np.array(targets_), np.array(predicted_), labels=classes)
     train_acc = calculate_accuracy(class_correct, class_total)
     return sum_curl_loss/len(train_loader), train_acc
     #write_to_graph('train/loss', sum_curl_loss/len(train_loader), writer, step_count_tb)
@@ -122,7 +123,7 @@ def evaluate(eval_model, eval_loader, draw_img=False, visualize=False, out_path=
 
         total_samples = (len(eval_loader) * args.eval_batch_size)
     
-    #wandb.sklearn.plot_confusion_matrix(np.array(targets_), np.array(predicted_), labels=classes)
+    wandb.sklearn.plot_confusion_matrix(np.array(targets_), np.array(predicted_), labels=classes)
     
     if draw_img:
         draw_confusion_matrix(np.array(targets_), np.array(predicted_), './confusion_matrix', classes)
@@ -168,12 +169,12 @@ def calculate_accuracy(class_correct, class_total):
 
 parser = argparse.ArgumentParser(description="Skeleton Classification Training Script")
 parser.add_argument("-lr", "--learning_rate", default=5.0, type=float, help="Learning rate of model. Default 0.001")
-parser.add_argument("-b", "--batch_size",  default=5, type=int, help="Batch Size for training")
-parser.add_argument("-eb", "--eval_batch_size",  default=5, type=int, help="Batch Size for evaluation")
-parser.add_argument("-tr_d", "--train_data", default='data/old_train_with180_samples.tsv', help='Path to training data')
-parser.add_argument("-ev_d", "--eval_data", default='data/old_train_with180_samples.tsv', help='Path to eval data')
+parser.add_argument("-b", "--batch_size",  default=10, type=int, help="Batch Size for training")
+parser.add_argument("-eb", "--eval_batch_size",  default=10, type=int, help="Batch Size for evaluation")
+parser.add_argument("-tr_d", "--train_data", default='./xsub_train.csv', help='Path to training data')
+parser.add_argument("-ev_d", "--eval_data", default='./xsub_val.csv', help='Path to eval data')
 parser.add_argument("-ts_d", "--test_data",  help='Path to test data')
-parser.add_argument("-e", "--epochs", type=int, default=200, help='Number of epochs to train model for')
+parser.add_argument("-e", "--epochs", type=int, default=100, help='Number of epochs to train model for')
 args = parser.parse_args()
 
 classes = ["drink water", "eat meal", "brush teeth", "brush hair", "drop", "pick up", "throw", "sit down", "stand up", "clapping", "reading", "writing"
@@ -185,15 +186,15 @@ classes = ["drink water", "eat meal", "brush teeth", "brush hair", "drop", "pick
            "walking towards", "walking apart"]
 
 # initalize wandb 
-#wandb.init(reinit=True)
+wandb.init(project="Skeleton Classification",reinit=True)
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 kwargs = {'num_workers': 1, 'pin_memory': True} if device == 'cuda' else {}
 
-train_dataset = SkeletonsDataset(args.train_data)
+train_dataset = SkeletonsDataset(args.train_data,args.batch_size)
 train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=False, **kwargs)
 
-eval_dataset = SkeletonsDataset(args.eval_data)
+eval_dataset = SkeletonsDataset(args.eval_data,args.eval_batch_size)
 eval_loader = DataLoader(eval_dataset, batch_size=args.eval_batch_size, shuffle=False, **kwargs)
 
 # Defining Model with parameters
@@ -230,7 +231,7 @@ for epoch in range(1,  max_epochs):
         val_loss, val_acc = evaluate(model, eval_loader)
     
     output_log.append('train_loss: '+str(tr_loss)+'\t'+ 'training_acc: '+str(tr_acc) + '\t' + 'val_loss: ' +str(val_loss) + '\t' + 'val_acc: '+str(val_acc) + '\n')    
-    #wandb.log({"train_loss":tr_loss, "training_acc":tr_acc, "val_loss":val_loss, "val_acc":val_acc, "learing_rate":scheduler.get_lr()[0]})
+    wandb.log({"train_loss":tr_loss, "training_acc":tr_acc, "val_loss":val_loss, "val_acc":val_acc, "learing_rate":scheduler.get_lr()[0]})
     print('-' * 89)
     print('| end of epoch {:3d} | time: {:5.2f}s | valid loss {:5.4f} | '
         'valid ppl {:8.2f}'.format(epoch, (time.time() - epoch_start_time),
@@ -256,6 +257,7 @@ for epoch in range(1,  max_epochs):
 
 with open("log.txt", "w") as outfile:
     outfile.write("\n".join(output_log))
+
 # loading the model again to evaluate for the test set.
 # checkpoint = torch.load("output/out_model_camera_view_train_1599686144.9230924")
 # model.load_state_dict(checkpoint['model_state_dict'])
@@ -267,18 +269,3 @@ with open("log.txt", "w") as outfile:
 # print('| End of training | test loss {:5.2f} | test ppl {:8.2f}'.format(
 #     test_loss, math.exp(test_loss)))
 # print('=' * 89)
-
-
-
-# max = 300
-# sk = SkeletonsDataset('data/train.tsv')
-# for i in range(sk.__len__()):
-#     x , _ = sk.__getitem__(i)
-#     if len(x) > max:
-#         print(len(x))
-# for data,target in train_loader:
-#     # x1 = (len(data[0]))
-#     if len(data[0]) > max:
-#         print(str(len(data[0])))
-#         max = len(data)
-# print(str(max))
