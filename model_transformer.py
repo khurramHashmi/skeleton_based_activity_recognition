@@ -6,7 +6,7 @@ from torch.nn import TransformerEncoder, TransformerEncoderLayer
 
 class PositionalEncoding(nn.Module):
 
-    def __init__(self, d_model, dropout=0.1, max_len=5000): #max_length needs to be check
+    def __init__(self, d_model, dropout=0.1, max_len=150): #max_length needs to be check
         super(PositionalEncoding, self).__init__()
         self.dropout = nn.Dropout(p=dropout)
 
@@ -36,7 +36,11 @@ class TransformerModel(nn.Module):
         self.transformer_encoder = TransformerEncoder(encoder_layers, nlayers)
         self.encoder = nn.Embedding(ntoken, ninp)
         self.ninp = ninp
-        self.decoder = nn.Linear(10 * 100 * ninp, 10*ntoken)
+
+        self.bn1 = nn.BatchNorm1d(100 * 150)
+
+        # self.decoder = nn.Linear(10 * 100 * ninp, 10 * ntoken) #previous
+        self.decoder = nn.Linear(10 * 100 * ninp, 10*ntoken) # changed to add batch_normalization
 
         # self.dense = nn.Linear(ntoken, ntoken)
         # self.dropout = nn.Dropout(0.2)
@@ -63,6 +67,11 @@ class TransformerModel(nn.Module):
         src = src * math.sqrt(self.ninp) #self attention mechanism
         src = self.pos_encoder(src)
         output = self.transformer_encoder(src, self.src_mask)
+
+        output = output.view(10, -1)
+
+        output = self.bn1(output)
+
         output = output.view(-1)
         output = self.decoder(output)
 

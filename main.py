@@ -127,6 +127,7 @@ def evaluate(eval_model, eval_loader, draw_img=False, visualize=False, out_path=
     
     if draw_img:
         draw_confusion_matrix(np.array(targets_), np.array(predicted_), './confusion_matrix', classes)
+
     val_acc = calculate_accuracy(class_correct, class_total)
     return total_loss / total_samples, val_acc
 
@@ -168,13 +169,16 @@ def calculate_accuracy(class_correct, class_total):
     #write_to_graph(split+'/Accuracy', acc_sum/60, writer, epoch)
 
 parser = argparse.ArgumentParser(description="Skeleton Classification Training Script")
-parser.add_argument("-lr", "--learning_rate", default=5.0, type=float, help="Learning rate of model. Default 0.001")
+parser.add_argument("-lr", "--learning_rate", default=5.0, type=float, help="Learning rate of model. Default 5.0")
 parser.add_argument("-b", "--batch_size",  default=10, type=int, help="Batch Size for training")
 parser.add_argument("-eb", "--eval_batch_size",  default=10, type=int, help="Batch Size for evaluation")
-parser.add_argument("-tr_d", "--train_data", default='./xsub_train.csv', help='Path to training data')
-parser.add_argument("-ev_d", "--eval_data", default='./xsub_val.csv', help='Path to eval data')
+parser.add_argument("-tr_d", "--train_data", default='./xsub_train_skel_small.csv', help='Path to training data')
+parser.add_argument("-ev_d", "--eval_data", default='./xsub_val_skel_small.csv', help='Path to eval data')
 parser.add_argument("-ts_d", "--test_data",  help='Path to test data')
-parser.add_argument("-e", "--epochs", type=int, default=200, help='Number of epochs to train model for')
+parser.add_argument("-e", "--epochs", type=int, default=100, help='Number of epochs to train model for')
+parser.add_argument("-hid_dim", "--nhid", type=int, default=150, help='Number of hidden dimenstions, default is 100')
+parser.add_argument("-dropout", "--dropout", type=float, default=0.2, help='Dropout value, default is 0.2')
+
 args = parser.parse_args()
 
 classes = ["drink water", "eat meal", "brush teeth", "brush hair", "drop", "pick up", "throw", "sit down", "stand up", "clapping", "reading", "writing"
@@ -186,7 +190,7 @@ classes = ["drink water", "eat meal", "brush teeth", "brush hair", "drop", "pick
            "walking towards", "walking apart"]
 
 # initalize wandb 
-wandb.init(project="Skeleton Classification",reinit=True)
+wandb.init(project="Skeleton Classification", reinit=True)
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 kwargs = {'num_workers': 1, 'pin_memory': True} if device == 'cuda' else {}
@@ -199,16 +203,18 @@ eval_loader = DataLoader(eval_dataset, batch_size=args.eval_batch_size, shuffle=
 
 # Defining Model with parameters
 ntokens = len(classes) # the size of vocabulary #change number of tokens from 15400 to 154
-emsize = 100 # embedding dimension
-nhid = 100 # the dimension of the feedforward network model in nn.TransformerEncoder
+emsize = 150 # embedding dimension
+nhid = args.nhid # the dimension of the feedforward network model in nn.TransformerEncoder
 nlayers = 2 # the number of nn.TransformerEncoderLayer in nn.TransformerEncoder
 nhead = 2 # the number of heads in the multi head attention models
-dropout = 0.2 # the dropout value
+dropout = args.dropout # the dropout value
 model = TransformerModel(ntokens, emsize, nhead, nhid, nlayers, dropout).to(device)
 
 criterion = nn.CrossEntropyLoss()
 optimizer = torch.optim.SGD(model.parameters(), lr=args.learning_rate)
 scheduler = torch.optim.lr_scheduler.StepLR(optimizer, 1.0, gamma=0.95)
+# scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, patience=5, verbose=True)
+# scheduler.get
 
 best_val_loss = float("inf")
 max_epochs = args.epochs # number of epochs
@@ -225,13 +231,17 @@ for epoch in range(1,  max_epochs):
     epoch_start_time = time.time()
     epoch_output_path = output_path +"/epoch_"+str(epoch_start_time)
     tr_loss, tr_acc = train(step_count_tb)
+    print('| end of epoch {:3d} | time: {:5.2f}s | Train loss {:5.4f} | '
+        'Train ppl {:8.2f}'.format(epoch, (time.time() - epoch_start_time),
+                                    tr_loss, math.exp(tr_loss)))
+
     if epoch == max_epochs-1:
-        val_loss, val_acc = evaluate(model, eval_loader, draw_img=True, visualize=True, out_path='./visual')
+        val_loss, val_acc = evaluate(model, eval_loader, draw_img=False, visualize=False, out_path='./visual')
     else:
         val_loss, val_acc = evaluate(model, eval_loader)
     
     output_log.append('train_loss: '+str(tr_loss)+'\t'+ 'training_acc: '+str(tr_acc) + '\t' + 'val_loss: ' +str(val_loss) + '\t' + 'val_acc: '+str(val_acc) + '\n')    
-    wandb.log({"train_loss":tr_loss, "training_acc":tr_acc, "val_loss":val_loss, "val_acc":val_acc, "learing_rate":scheduler.get_lr()[0]})
+    wandb.log({"train_loss":tr_loss, "training_acc":tr_acc, "val_loss":val_loss, "val_acc":val_acc, "learing_rate":optimizer.param_groups[0]['lr']})
     print('-' * 89)
     print('| end of epoch {:3d} | time: {:5.2f}s | valid loss {:5.4f} | '
         'valid ppl {:8.2f}'.format(epoch, (time.time() - epoch_start_time),
@@ -253,7 +263,7 @@ for epoch in range(1,  max_epochs):
             'optimizer_state_dict': optimizer.state_dict(),
             'loss': best_val_loss
         }, epoch_output_path)
-    scheduler.step()
+    scheduler.step(val_loss)
 
 with open("log.txt", "w") as outfile:
     outfile.write("\n".join(output_log))

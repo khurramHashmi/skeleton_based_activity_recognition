@@ -66,6 +66,9 @@ def gen_data(args):
     path_list = []
 
     for filename in os.listdir(args.data_path):
+
+        if file_count >= 500:
+            break
         train_list = []
         video_sequence = []
         # reading skeleton data
@@ -92,9 +95,13 @@ def gen_data(args):
 
         skeleton_data = np.load(args.data_path + filename, allow_pickle=True).item()
         skeleton_sequence = []
+
+
+
         # if file_count >= 2:  # Limiting the sequences for now
         #     break
         skeleton_list = []
+
 
         #since label for all sequences is same
         output_label = skeleton_data["file_name"][len(skeleton_data["file_name"]) - 2]
@@ -107,14 +114,16 @@ def gen_data(args):
                     joint_count = 1
 
                     for joint_count in range(1, 26):
-                        rgb_body_number = "rgb_body" + str(person_count)
+                        rgb_body_number = "skel_body" + str(person_count) # now writing skeletons
                         connecting_joints = connecting_joint[str(joint_count)]
 
                         # Calculating distance between two fromes on each joints then take mean
-                        x1 = int(skeleton_data[rgb_body_number][frame_count][joint_count - 1][0])
-                        y1 = int(skeleton_data[rgb_body_number][frame_count][joint_count - 1][1])
+                        x1 = (skeleton_data[rgb_body_number][frame_count][joint_count - 1][0])
+                        y1 = (skeleton_data[rgb_body_number][frame_count][joint_count - 1][1])
+                        z1 = (skeleton_data[rgb_body_number][frame_count][joint_count - 1][2])
                         a_vec.append(x1)
                         a_vec.append(y1)
+                        a_vec.append(z1)
 
                         # Connecting joints code for later use
                         #             for next_joint in connecting_joints:
@@ -141,11 +150,12 @@ def gen_data(args):
                 check_max = len(skeleton_sequence)
                 print(check_max)
 
-            temp_vec = [0] * 100
+            temp_vec = [0] * 150
+
             for i in range(len(skeleton_sequence),max_skel_num):  # padding 0s vector to the maximum size available
                 skeleton_sequence.append(temp_vec)                 # making the video size for each activity same
 
-            video_sequence.append(skeleton_sequence[0:100])
+            video_sequence.append(skeleton_sequence[0:150])
 
             train_list.append(video_sequence)
             # count = count + 1
@@ -161,7 +171,7 @@ def gen_data(args):
                 wr = csv.writer(result_file, quoting=csv.QUOTE_NONE, delimiter="\t")
                 for line in train_list:
                     wr.writerow((line[0], line[1]))
-            print("CSV file created with the name of " + os.path.basename(filename) + '.tsv')
+            # print("CSV file created with the name of " + os.path.basename(filename) + '.tsv')
 
         except:
             count_prob +=1
@@ -169,12 +179,12 @@ def gen_data(args):
     
     print("PROBLEM IN FILES : ", str(count_prob))
     df = pd.DataFrame(data=pd.Series(path_list), columns=['path'])
-    df.to_csv(os.path.join('./', args.benchmark+'_'+args.part+'.csv'), index=False)
+    df.to_csv(os.path.join('./', args.benchmark+'_'+args.part+'_skel_small.csv'), index=False)
 
 parser = argparse.ArgumentParser(description="Dataset Generator for Skeleton Classification Model")
 parser.add_argument("-d", "--data_path",default='./data/raw_npy/', help="Path to folder containing data")
-parser.add_argument("-o", "--out_path",default='./data/csv_data/train', help="Path to create tsv file")
+parser.add_argument("-o", "--out_path",default='./data/data_skel/val/', help="Path to create tsv file")
 parser.add_argument("-b", "--benchmark", default='xsub', help="Camera view or subject view data generation parameter. xview for camera view, xsub for subject view." )
-parser.add_argument("-p", "--part", default='train', help="Create data for train or validation")
+parser.add_argument("-p", "--part", default='val', help="Create data for train or validation")
 args = parser.parse_args()
 gen_data(args)

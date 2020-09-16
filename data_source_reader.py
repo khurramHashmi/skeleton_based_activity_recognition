@@ -55,8 +55,8 @@ class SkeletonsDataset(Dataset):
         count = 1
         for d in data:
             d = re.sub('\D', '', d)
-            data_skel.append(int(d))
-            if count == 100:
+            data_skel.append(float(d))
+            if count == 150:
                 data_source.append(data_skel)
                 data_skel = []
                 count = 1
