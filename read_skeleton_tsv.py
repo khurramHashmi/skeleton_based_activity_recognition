@@ -64,10 +64,11 @@ def gen_data(args):
     file_count = 0
     count_prob = 0
     path_list = []
+    current_length = []
 
     for filename in os.listdir(args.data_path):
 
-        if file_count >= 500:
+        if file_count >= 500: # 1000 for training
             break
         train_list = []
         video_sequence = []
@@ -96,16 +97,15 @@ def gen_data(args):
         skeleton_data = np.load(args.data_path + filename, allow_pickle=True).item()
         skeleton_sequence = []
 
-
-
         # if file_count >= 2:  # Limiting the sequences for now
         #     break
         skeleton_list = []
-
-
+    
         #since label for all sequences is same
         output_label = skeleton_data["file_name"][len(skeleton_data["file_name"]) - 2]
         output_label += skeleton_data["file_name"][len(skeleton_data["file_name"]) - 1]
+        current_length.append(len(skeleton_data["nbodys"]))
+    
         try:
             for frame_count in range(len(skeleton_data["nbodys"])):
                 # person_count = 0
@@ -178,7 +178,7 @@ def gen_data(args):
             # print("no value in the dataset")
     
     print("PROBLEM IN FILES : ", str(count_prob))
-    df = pd.DataFrame(data=pd.Series(path_list), columns=['path'])
+    df = pd.DataFrame(data={'path':pd.Series(path_list), 'frame_count':current_length})
     df.to_csv(os.path.join('./', args.benchmark+'_'+args.part+'_skel_small.csv'), index=False)
 
 parser = argparse.ArgumentParser(description="Dataset Generator for Skeleton Classification Model")
