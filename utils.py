@@ -1,4 +1,5 @@
 import os
+import sys
 import cv2
 import errno
 import numpy as np
@@ -35,15 +36,23 @@ def latex_writer(labels, values, index):
     #latext_string = df.to_latex(index=False, col_space=3, bold_rows=True, caption='Testing')
     return latex_string
 
+def idx_class(classes, preds):
+    classes_ = []
+    for j in preds:
+        classes_.append(classes[j])
+    return classes_
+
 def write_to_graph(labels, value,writer,epoch):
+    
     writer.add_scalar(labels, value, epoch)
 
-def data_distribution(labels): #function generating histograms
+def barplot(x, y, data, axlabel, graph_out): #function generating histograms
 
-    plot = sns.distplot(labels, axlabel='Classes', label='Class Distribution', kde=False)   
-    plot.savefig("class_distribution.png")
+    plot = sns.barplot(x=x,y=y, data=data)   
+    plot.figure.savefig(os.path.join(graph_out,axlabel+".png"))
 
 def create_dir(path):
+    
     try:
         os.makedirs(path)
     except OSError as e:
@@ -61,7 +70,6 @@ def visualize_skeleton(path, pred_label, out_path):
         returns:
             -images
     '''
-    
     connecting_joint = {
     "1": [2,13,17],
     "2": [21],
@@ -89,15 +97,18 @@ def visualize_skeleton(path, pred_label, out_path):
     "24": [25],
     "25": [25]
     }
-
+    raw_file_path = '/netscratch/m_ahmed/datasets/dataset_skeleton/raw_npy'
+    
     for filename, label in zip(path, pred_label):
-
-        skeleton_data = np.load(filename, allow_pickle=True).item()
+        count_ = 0
+        name = os.path.basename(filename[:-4])
+        current_path = os.path.join(raw_file_path, name)
+        skeleton_data = np.load(current_path, allow_pickle=True).item()
         output_label = skeleton_data["file_name"][len(skeleton_data["file_name"]) - 2]
         output_label += skeleton_data["file_name"][len(skeleton_data["file_name"]) - 1]
 
         for frame_count in range(len(skeleton_data["nbodys"])):
-
+            print('creating skeleton')
             person_count=0
             #img2 = image
             img2 = np.zeros((1080,1920,3), np.uint8)
@@ -177,13 +188,14 @@ def visualize_skeleton(path, pred_label, out_path):
                 maxx+=100
                 miny-=50
                 maxy+=50
-                cv2.putText(img2,'Predicted Label: '+str(label),(minx+10,miny+30), font, 1,(0,0,255),2)
-                cv2.putText(img2,'Ground Truth Label: '+str(output_label), (minx+30, miny+30), font, 1,(0,0,255),2)
+                cv2.putText(img2,'Predicted Label: '+str(label),(minx+10,miny+30), font, 1,(0,0,255),1)
+                cv2.putText(img2,'Ground Truth Label: '+str(output_label), (1080-250, 1920-250), font, 1,(0,0,255),1)
                 dist=0
-
                 img2 = img2[miny:maxy, minx:maxx]
-
-                cv2.imwrite(os.path.join(out_path, os.path.basename(filename)+'.png', img2))     # save frame as JPEG file
+                path_to_write = os.path.join(out_path, os.path.basename(filename).split('.')[0]+'_'+str(count_)+'.png')
+                count_+=1
+                print(path_to_write)
+                cv2.imwrite(path_to_write, img2)     # save frame as JPEG file
                 #print ('Read a new frame: ', success)
                 #count = count + 1
 
@@ -204,7 +216,7 @@ def draw_confusion_matrix(y_true, y_pred, filename, labels, ymap=None, figsize=(
                  Caution: original y_true, y_pred and labels must align.
       figsize:   the size of the figure plotted.
     """
-    cm = confusion_matrix(y_true, y_pred, labels=np.unique(y_true))
+    cm = confusion_matrix(y_true, y_pred, labels=labels)
     cm_sum = np.sum(cm, axis=1, keepdims=True)
     cm_perc = cm / cm_sum.astype(float) * 100
     annot = np.empty_like(cm).astype(str)
