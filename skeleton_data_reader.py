@@ -21,9 +21,8 @@ class SkeletonsDataset(Dataset):
         labels = []
         for label in label_list:
             label = re.sub('\D', '', label)
-            for i in range(100):
-                labels.append(int(label))
-
+            # for i in range(100):
+            labels.append(int(label))
 
         #parsing string data as a list of vectors
         data = self.train_df[1][idx].replace("'", "").split(",")
@@ -43,9 +42,10 @@ class SkeletonsDataset(Dataset):
 
         data_source = torch.tensor(data_source, dtype=torch.long)
         labels = torch.tensor(labels, dtype=torch.long)
-        data_source = data_source.view(-1)
+        # data_source = data_source.view(-1)
+
         # data_source = torch.Tensor(data_source).view(len(data_source), -1).t().contiguous()
         labels = labels.view(-1)
 
-        return data_source.t().contiguous(),labels.t().contiguous()
+        return data_source,labels.t().contiguous()
 
