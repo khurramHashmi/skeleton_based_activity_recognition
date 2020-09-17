@@ -11,13 +11,13 @@ from torch.nn import CrossEntropyLoss, MSELoss
 import argparse
 import sys
 # Local Modules
-#os.chdir("./embeddings/")
+# os.chdir("./embeddings/")
 from model import RAE, simple_autoencoder
-#os.chdir("../")
+os.chdir("../")
 
-os.environ["WANDB_MODE"] = "dryrun"
-#os.environ["WANDB_API_KEY"] = "cbf5ed4387d24dbdda68d6de22de808c592f792e"
-#os.environ["WANDB_ENTITY"] = "khurram"
+# os.environ["WANDB_MODE"] = "dryrun"
+os.environ["WANDB_API_KEY"] = "cbf5ed4387d24dbdda68d6de22de808c592f792e"
+os.environ["WANDB_ENTITY"] = "khurram"
 # initalize wandb
 
 def prepare_dataset(sequences):
@@ -45,7 +45,8 @@ def train_model(model, train_loader, lr, epochs, logging):
     
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(device)
-    optimizer = torch.optim.Adam(model.parameters())
+    # optimizer = torch.optim.Adam(model.parameters())
+    optimizer = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=1e-5)
     # criterion = CrossEntropyLoss()
     criterion = MSELoss()
     print_once=True
@@ -54,15 +55,15 @@ def train_model(model, train_loader, lr, epochs, logging):
         model.train()
         print('*******Starting Training for epoch {} *******'.format(epoch))
         # iterating over the dataset to create a whole skeleton sequence
-        for data, __, __, __ in train_loader:
+        for data, __, __ in train_loader:
             
-            seq_true = data.view(-1, 150)
+            seq_true = data.view(-1, 6000)
             
             if print_once:
                 print('Example shape: ',seq_true.shape)
                 print_once=False
 
-            # Reduces learning rate every 50 epochs
+            # Reduces learning rate every 3 epochs
             if not epoch % 3:
                 for param_group in optimizer.param_groups:
                     param_group["lr"] = lr * (0.993 ** epoch)
@@ -105,8 +106,8 @@ parser = argparse.ArgumentParser(description="Skeleton Autoencoders training ")
 parser.add_argument("-lr", "--learning_rate", default=5.0, type=float, help="Learning rate of model. Default 5.0")
 parser.add_argument("-b", "--batch_size", default=100, type=int, help="Batch Size for training")
 parser.add_argument("-eb", "--eval_batch_size", default=10, type=int, help="Batch Size for evaluation")
-parser.add_argument("-tr_d", "--train_data", default='../xsub_val_skel_small.csv', help='Path to training data')
-parser.add_argument("-ev_d", "--eval_data", default='../xsub_val_skel_small.csv', help='Path to eval data')
+parser.add_argument("-tr_d", "--train_data", default='xsub_val_rgb.csv', help='Path to training data')
+parser.add_argument("-ev_d", "--eval_data", default='xsub_val_rgb.csv', help='Path to eval data')
 parser.add_argument("-ts_d", "--test_data", help='Path to test data')
 parser.add_argument("-e", "--epochs", type=int, default=100, help='Number of epochs to train model for')
 parser.add_argument("-dropout", "--dropout", type=float, default=0.2, help='Dropout value, default is 0.2')
@@ -128,11 +129,11 @@ train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=Fal
 #
 # dataset = sequences
 seq_len =1
-num_features = 150
+num_features = 100
 
 model = simple_autoencoder().cuda()
 #RAE(seq_len, num_features, 75)
-embeddings, f_loss = train_model(model, train_loader, 0.01, args.epochs, True)
+embeddings, f_loss = train_model(model, train_loader, 0.001, args.epochs, True)
 #torch.save(model.state_dict(), './sim_autoencoder.pth')
 # encoder, decoder, embeddings, f_loss = QuickEncode(
 #     sequences,
