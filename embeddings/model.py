@@ -108,3 +108,25 @@ class RAE(nn.Module):
         x = self.decoder(x)
 
         return x
+
+
+class simple_autoencoder(nn.Module):
+    def __init__(self):
+        super(simple_autoencoder, self).__init__()
+        self.encoder = nn.Sequential(
+            nn.Linear(150, 128),
+            nn.ReLU(True),
+            nn.Linear(128, 100),
+            nn.ReLU(True), nn.Linear(100, 75))
+        self.decoder = nn.Sequential(
+            nn.Linear(75, 100),
+            nn.ReLU(True),
+            nn.Linear(100, 128),
+            nn.ReLU(True),
+            nn.Linear(128, 150),
+            nn.Tanh())
+
+    def forward(self, x):
+        x = self.encoder(x)
+        x = self.decoder(x)
+        return x
