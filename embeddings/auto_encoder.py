@@ -14,7 +14,7 @@ import sys
 # Local Modules
 # os.chdir("./embeddings/")
 from model import RAE, simple_autoencoder
-#os.chdir("../")
+os.chdir("../")
 import logging
 
 os.environ["WANDB_MODE"] = "dryrun"
@@ -59,9 +59,9 @@ def train_model(model, train_loader, lr, epochs, logging):
         count_batch = 0
         logging.info('*******Starting Training for epoch {} *******'.format(epoch))
         # iterating over the dataset to create a whole skeleton sequence
-        for data, __, __, __ in train_loader:
+        for data, __, __ in train_loader:
             
-            seq_true = data.view(-1, 9000)
+            seq_true = data.view(-1, 100)
             
             if print_once:
                 logging.info('Example shape: {}'.format(seq_true.shape))
@@ -90,12 +90,14 @@ def train_model(model, train_loader, lr, epochs, logging):
                         
             losses.append(loss.item())
             count_batch += 1
+            if count_batch % 200 == 0:
+                logging.info('Done with batch {}'.format(count_batch))
 
         logging.info('Done with epoch {}'.format(epoch))
         
         if loss.item() < losses[-1]:
             logging.info('Saving model')
-            torch.save(model.state_dict(), '/netscratch/m_ahmed/skeleton_activity/video_autoencoder_float_glasgow.pth')
+            torch.save(model.state_dict(), './subject_skeleton_autoencoder_int_rgb.pth')
 
         logging.info("Epoch: {}, Loss: {}".format(str(epoch), str(mean(losses))))
         print("Epoch: {}, Loss: {}".format(str(epoch), str(mean(losses))))
@@ -107,8 +109,8 @@ parser = argparse.ArgumentParser(description="Skeleton Autoencoders training ")
 parser.add_argument("-lr", "--learning_rate", default=5.0, type=float, help="Learning rate of model. Default 5.0")
 parser.add_argument("-b", "--batch_size", default=100, type=int, help="Batch Size for training")
 parser.add_argument("-eb", "--eval_batch_size", default=10, type=int, help="Batch Size for evaluation")
-parser.add_argument("-tr_d", "--train_data", default='../xsub_train_float.csv', help='Path to training data')
-parser.add_argument("-ev_d", "--eval_data", default='../xsub_val_float.csv', help='Path to eval data')
+parser.add_argument("-tr_d", "--train_data", default='xsub_train_rgb.csv', help='Path to training data')
+parser.add_argument("-ev_d", "--eval_data", default='xsub_val_rgb.csv', help='Path to eval data')
 parser.add_argument("-ts_d", "--test_data", help='Path to test data')
 parser.add_argument("-e", "--epochs", type=int, default=100, help='Number of epochs to train model for')
 parser.add_argument("-dropout", "--dropout", type=float, default=0.2, help='Dropout value, default is 0.2')
@@ -117,7 +119,7 @@ args = parser.parse_args()
 
 wandb.init(project="Auto Encoders", reinit=True)
 
-LOG_FILENAME = 'experiment_log_1.log'
+LOG_FILENAME = 'experiment_Skeleton_RGB.log'
 # Set up a specific logger with our desired output level
 my_logger = logging.getLogger('MyLogger')
 my_logger.setLevel(logging.INFO)
