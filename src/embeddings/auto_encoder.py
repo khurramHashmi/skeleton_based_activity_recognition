@@ -37,7 +37,37 @@ def prepare_dataset(sequences):
     return dataset, shape[1], shape[2]
 
 
-def train_model(model, train_loader, lr, epochs, logging, out_path):
+def evaluate(eval_model, eval_loader, reshape_size):
+    
+    '''
+        Function to evaluate model performance
+        args:
+            -eval_model: model to be used for evaluation purposes
+            -eval_loader: data loader for data loading 
+
+        returns:
+            Loss and accuracy for given dataset
+    '''
+
+    eval_model.eval() # Turn on the evaluation mode
+
+    with torch.no_grad():
+        losses = []
+        for data, __, __, __ in eval_loader:
+
+            seq_true = data.view(-1, reshape_size)
+
+            # Forward pass
+            seq_true = seq_true.cuda()
+            seq_pred = model(seq_true)
+            loss = criterion(seq_pred, seq_true)
+
+            # Backward pass
+            losses.append(loss.item())
+        
+        return np.mean(losses)
+
+def train_model(model, train_loader, eval_loader, lr, epochs, logging, out_path, reshape_size):
     
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     logging.info('***** Training on '+str(device)+' *****')
@@ -54,9 +84,9 @@ def train_model(model, train_loader, lr, epochs, logging, out_path):
         count_batch = 0
         logging.info('*******Starting Training for epoch {} *******'.format(epoch))
         # iterating over the dataset to create a whole skeleton sequence
-        for data, __, __ in train_loader:
+        for data, __, __, __ in train_loader:
             
-            seq_true = data.view(-1, 6000)
+            seq_true = data.view(-1, reshape_size)
             
             if print_once:
                 logging.info('Example shape: {}'.format(seq_true.shape))
@@ -65,11 +95,6 @@ def train_model(model, train_loader, lr, epochs, logging, out_path):
             if count_batch % 20000 == 0:
                 logging.info('{} data done'.format(count_batch))
             
-            # Reduces learning rate every 3 epochs
-            if epoch % 3 == 0:
-                for param_group in optimizer.param_groups:
-                    param_group["lr"] = lr * (0.993 ** epoch)
-
             #for seq_true in dataset:
             #seq_true = torch.tensor(seq_true.numpy()[np.newaxis, :], dtype=torch.float)
             # Forward pass
@@ -87,12 +112,20 @@ def train_model(model, train_loader, lr, epochs, logging, out_path):
                 logging.info('Done with batch {}'.format(count_batch))
 
         logging.info('Done with epoch {}'.format(epoch))
-        
-        if loss.item() < curr_loss:
-            curr_loss = loss.item()
-            logging.info('Saving model')
-            torch.save(model.state_dict(), os.path.join(out_path, './subject_skeleton_autoencoder_int_rgb.pth'))
+                
+        if epoch % 3 == 0:
 
+            val_loss = evaluate(model, eval_loader, reshape_size)
+
+            if val_loss < curr_loss:
+                curr_loss = val_loss
+                logging.info('Saving model')
+                torch.save(model.state_dict(), os.path.join(out_path, 'subject_skeleton_autoencoder_int_rgb.pth'))
+
+            for param_group in optimizer.param_groups:
+                param_group["lr"] = lr * (0.993 ** epoch)
+
+                
         logging.info("Epoch: {}, Loss: {}".format(str(epoch), str(mean(losses))))
         print("Epoch: {}, Loss: {}".format(str(epoch), str(mean(losses))))
         wandb.log({"train_loss": mean(losses), "learing_rate": optimizer.param_groups[0]['lr']})
@@ -109,6 +142,8 @@ parser.add_argument("-ts_d", "--test_data", help='Path to test data')
 parser.add_argument("-o", "--output", help='Path to save autoencoder weights', default='./autoencoder_weights')
 parser.add_argument("-e", "--epochs", type=int, default=100, help='Number of epochs to train model for')
 parser.add_argument("-dropout", "--dropout", type=float, default=0.2, help='Dropout value, default is 0.2')
+parser.add_argument("-t", "--tr_type", default='video', help='Train on video or skeleton')
+
 
 args = parser.parse_args()
 # initalize wandb
@@ -130,7 +165,10 @@ seq_len =1
 num_features = 100
 model = simple_autoencoder().cuda()
 #RAE(seq_len, num_features, 75)
-model = train_model(model, train_loader, 0.001, args.epochs, logging, args.output)
+if args.tr_type == 'video':
+    model = train_model(model, train_loader, 0.001, args.epochs, logging, args.output, 6000)
+else:
+    model = train_model(model, train_loader, 0.001, args.epochs, logging, args.output, 100)
 
 #torch.save(model.state_dict(), './sim_autoencoder.pth')
 # encoder, decoder, embeddings, f_loss = QuickEncode(
