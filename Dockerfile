@@ -19,7 +19,6 @@ RUN python3 -m pip install --no-cache-dir --upgrade pip && \
 WORKDIR /workspace
 
 COPY ./src ./
-RUN cd skeleton_based_acitvity_recognition/
-RUN pip install --no-cache-dir -r requirements.txt 
+RUN pip install --no-cache-dir -r requirement.txt 
  
 CMD ["/bin/bash"]
