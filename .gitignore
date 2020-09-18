@@ -1,3 +1,6 @@
+*.csv
+*.tsv
+*.log
 __pycache__/*
 wandb/*
 wandb
