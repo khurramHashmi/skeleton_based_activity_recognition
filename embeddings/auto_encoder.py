@@ -1,26 +1,20 @@
 # Standard Library
-from statistics import mean
 import os
 import wandb
+import torch
+import logging
+import argparse
+from statistics import mean
+from torch.nn import CrossEntropyLoss, MSELoss
+# Local Modules
 #os.chdir("./../")
 from data_source_reader import *
-# Third Party
-import torch
-from torch.autograd import Variable
-from torch.nn import CrossEntropyLoss, MSELoss
-import argparse
-import tqdm
-import sys
-# Local Modules
-# os.chdir("./embeddings/")
 from model import RAE, simple_autoencoder
 os.chdir("../")
-import logging
+from utils import create_dir
 
-os.environ["WANDB_MODE"] = "dryrun"
-#os.environ["WANDB_API_KEY"] = "cbf5ed4387d24dbdda68d6de22de808c592f792e"
-#os.environ["WANDB_ENTITY"] = "khurram"
-# initalize wandb
+os.environ["WANDB_API_KEY"] = "cbf5ed4387d24dbdda68d6de22de808c592f792e"
+os.environ["WANDB_ENTITY"] = "khurram"
 
 def prepare_dataset(sequences):
     if type(sequences) == list:
@@ -43,7 +37,7 @@ def prepare_dataset(sequences):
     return dataset, shape[1], shape[2]
 
 
-def train_model(model, train_loader, lr, epochs, logging):
+def train_model(model, train_loader, lr, epochs, logging, out_path):
     
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     logging.info('***** Training on '+str(device)+' *****')
@@ -52,7 +46,8 @@ def train_model(model, train_loader, lr, epochs, logging):
     # criterion = CrossEntropyLoss()
     criterion = MSELoss()
     print_once=True
-    
+    curr_loss = float("inf")
+
     for epoch in range(1, epochs + 1):
         losses = []
         model.train()
@@ -72,7 +67,6 @@ def train_model(model, train_loader, lr, epochs, logging):
             
             # Reduces learning rate every 3 epochs
             if epoch % 3 == 0:
-                logging.info('changing learning rate')
                 for param_group in optimizer.param_groups:
                     param_group["lr"] = lr * (0.993 ** epoch)
 
@@ -87,7 +81,6 @@ def train_model(model, train_loader, lr, epochs, logging):
             optimizer.zero_grad()    
             loss.backward()
             optimizer.step()
-                        
             losses.append(loss.item())
             count_batch += 1
             if count_batch % 200 == 0:
@@ -95,9 +88,10 @@ def train_model(model, train_loader, lr, epochs, logging):
 
         logging.info('Done with epoch {}'.format(epoch))
         
-        if loss.item() < losses[-1]:
+        if loss.item() < curr_loss:
+            curr_loss = loss.item()
             logging.info('Saving model')
-            torch.save(model.state_dict(), './subject_skeleton_autoencoder_int_rgb.pth')
+            torch.save(model.state_dict(), os.path.join(out_path, './subject_skeleton_autoencoder_int_rgb.pth'))
 
         logging.info("Epoch: {}, Loss: {}".format(str(epoch), str(mean(losses))))
         print("Epoch: {}, Loss: {}".format(str(epoch), str(mean(losses))))
@@ -112,11 +106,12 @@ parser.add_argument("-eb", "--eval_batch_size", default=10, type=int, help="Batc
 parser.add_argument("-tr_d", "--train_data", default='xsub_train_rgb.csv', help='Path to training data')
 parser.add_argument("-ev_d", "--eval_data", default='xsub_val_rgb.csv', help='Path to eval data')
 parser.add_argument("-ts_d", "--test_data", help='Path to test data')
+parser.add_argument("-o", "--output", help='Path to save autoencoder weights', default='./autoencoder_weights')
 parser.add_argument("-e", "--epochs", type=int, default=100, help='Number of epochs to train model for')
 parser.add_argument("-dropout", "--dropout", type=float, default=0.2, help='Dropout value, default is 0.2')
 
 args = parser.parse_args()
-
+# initalize wandb
 wandb.init(project="Auto Encoders", reinit=True)
 
 LOG_FILENAME = 'experiment_Skeleton_RGB.log'
@@ -130,12 +125,12 @@ train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=Fal
 
 # eval_dataset = SkeletonsDataset(args.eval_data, args.eval_batch_size)
 # eval_loader = DataLoader(eval_dataset, batch_size=args.eval_batch_size, shuffle=False, **kwargs)
-
+create_dir(args.output)
 seq_len =1
 num_features = 100
 model = simple_autoencoder().cuda()
 #RAE(seq_len, num_features, 75)
-model = train_model(model, train_loader, 0.001, args.epochs, logging)
+model = train_model(model, train_loader, 0.001, args.epochs, logging, args.output)
 
 #torch.save(model.state_dict(), './sim_autoencoder.pth')
 # encoder, decoder, embeddings, f_loss = QuickEncode(
