@@ -55,8 +55,8 @@ class SkeletonsDataset(Dataset):
         count = 1
         for d in data:
             d = re.sub('\D', '', d)
-            data_skel.append(float(d))
-            if count == 150:
+            data_skel.append(int(d))
+            if count == 100:
                 data_source.append(data_skel)
                 data_skel = []
                 count = 1
@@ -105,7 +105,7 @@ class SkeletonsDataset(Dataset):
         #         count+=1
         # Now making embedding of skeleton sequence code ends here
 
-        train_data_source = torch.tensor(data_source[0:100], dtype=torch.float)
+        train_data_source = torch.tensor(data_source[0:60], dtype=torch.float)
         labels = torch.tensor(labels, dtype=torch.long)
         # data_source = data_source.view(-1)
 

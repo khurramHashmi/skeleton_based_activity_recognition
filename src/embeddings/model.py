@@ -120,9 +120,9 @@ class simple_autoencoder(nn.Module):
             nn.ReLU(True),
             nn.Linear(256, 128),
             nn.ReLU(True),
-            nn.Linear(128, 75))
+            nn.Linear(128, 64))
         self.decoder = nn.Sequential(
-            nn.Linear(75, 128),
+            nn.Linear(64, 128),
             nn.ReLU(True),
             nn.Linear(128, 256),
             nn.ReLU(True),
