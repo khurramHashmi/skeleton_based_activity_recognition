@@ -10,7 +10,7 @@ import pandas as pd
 from utils import create_dir
 
 def gen_data(args):
-
+    print('Generating data for '+args.part+' with '+args.benchmark)
     # list of ids to be used for training subject wise view.
     training_subjects = [
         1, 2, 4, 5, 8, 9, 13, 14, 15, 16, 17, 18, 19, 25, 27, 28, 31, 34, 35, 38
