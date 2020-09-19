@@ -114,24 +114,46 @@ class simple_autoencoder(nn.Module):
     def __init__(self):
         super(simple_autoencoder, self).__init__()
         self.encoder = nn.Sequential(
-            nn.Linear(6000, 512),
+            nn.Linear(100, 64),
             nn.ReLU(True),
-            nn.Linear(512, 256),
+            nn.Linear(64, 32),
             nn.ReLU(True),
-            nn.Linear(256, 128),
+            nn.Linear(32, 16),
             nn.ReLU(True),
-            nn.Linear(128, 64))
+            nn.Linear(16, 8))
         self.decoder = nn.Sequential(
-            nn.Linear(64, 128),
+            nn.Linear(8, 16),
             nn.ReLU(True),
-            nn.Linear(128, 256),
+            nn.Linear(16, 32),
             nn.ReLU(True),
-            nn.Linear(256, 512),
+            nn.Linear(32, 64),
             nn.ReLU(True),
-            nn.Linear(512, 6000),
+            nn.Linear(64, 100),
             nn.ReLU(True))
 
     def forward(self, x):
         x = self.encoder(x)
         x = self.decoder(x)
+        return x
+
+
+'''
+    classification network working in the supervised manner
+    backpropogating the loss
+'''
+
+
+class classification_network(nn.Module):
+
+    def __init__(self):
+        super(classification_network, self).__init__()
+        self.classifier = nn.Sequential(
+            nn.Linear(8, 1),
+            nn.Dropout(0.2),
+            nn.Softmax(dim=1)
+        )
+
+    def forward(self, x):
+
+        x = self.classifier(x)
         return x

@@ -34,6 +34,7 @@ class SkeletonsDataset(Dataset):
         file_names.append((file_name))
         batch_sample = pd.read_csv(file_name, delimiter="\t", header=None)
 
+        # print(file_name)
         # print(batch_sample)
         # label_list = batch_sample[0].replace("'", "").split(",")
         # label_list = label_list.split(",")
@@ -55,6 +56,7 @@ class SkeletonsDataset(Dataset):
         count = 1
         for d in data:
             d = re.sub('\D', '', d)
+            # print(type(d))
             data_skel.append(int(d))
             if count == 100:
                 data_source.append(data_skel)
@@ -111,5 +113,7 @@ class SkeletonsDataset(Dataset):
 
         # data_source = torch.Tensor(data_source).view(len(data_source), -1).t().contiguous()
         labels = labels.view(-1)
-        return train_data_source, labels.t().contiguous(),file_names,frame_count  #Taking Top 100 frames because of having extra data and unnecessary padding with 0s
+        # return train_data_source, labels.t().contiguous(),file_names  #Taking Top 100 frames because of having extra data and unnecessary padding with 0s
+
+        return train_data_source, labels.t().contiguous(), file_names, frame_count  # Taking Top 100 frames because of having extra data and unnecessary padding with 0s
 
