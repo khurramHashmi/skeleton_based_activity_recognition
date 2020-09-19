@@ -1,0 +1,2 @@
+# skeleton_based_activity_recognition
+Skeleton based activity recognition using Transformers
