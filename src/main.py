@@ -8,7 +8,6 @@ from model_transformer import *
 import torch.nn.functional as F
 from data_source_reader import SkeletonsDataset
 from torch.utils.data import DataLoader, Dataset
-from torch.utils.tensorboard import SummaryWriter
 
 class_correct = list(0. for i in range(60))
 class_total = list(0. for i in range(60))
