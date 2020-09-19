@@ -50,7 +50,7 @@ def evaluate(eval_model, eval_loader, reshape_size):
     '''
 
     eval_model.eval() # Turn on the evaluation mode
-
+    criterion = MSELoss()
     with torch.no_grad():
         losses = []
         for data, __, __, __ in eval_loader:
@@ -114,9 +114,9 @@ def train_model(model, train_loader, eval_loader, lr, epochs, logging, out_path,
         logging.info('Done with epoch {}'.format(epoch))
                 
         if epoch % 3 == 0:
-
             val_loss = evaluate(model, eval_loader, reshape_size)
-
+            logging.info('Val Loss {}'.format(val_loss))
+            wandb.log({"val_loss": val_loss})
             if val_loss < curr_loss:
                 curr_loss = val_loss
                 logging.info('Saving model')
@@ -125,7 +125,6 @@ def train_model(model, train_loader, eval_loader, lr, epochs, logging, out_path,
             for param_group in optimizer.param_groups:
                 param_group["lr"] = lr * (0.993 ** epoch)
 
-                
         logging.info("Epoch: {}, Loss: {}".format(str(epoch), str(mean(losses))))
         print("Epoch: {}, Loss: {}".format(str(epoch), str(mean(losses))))
         wandb.log({"train_loss": mean(losses), "learing_rate": optimizer.param_groups[0]['lr']})
@@ -135,14 +134,16 @@ def train_model(model, train_loader, eval_loader, lr, epochs, logging, out_path,
 parser = argparse.ArgumentParser(description="Skeleton Autoencoders training ")
 parser.add_argument("-lr", "--learning_rate", default=5.0, type=float, help="Learning rate of model. Default 5.0")
 parser.add_argument("-b", "--batch_size", default=100, type=int, help="Batch Size for training")
-parser.add_argument("-eb", "--eval_batch_size", default=10, type=int, help="Batch Size for evaluation")
+parser.add_argument("-eb", "--eval_batch_size", default=100, type=int, help="Batch Size for evaluation")
 parser.add_argument("-tr_d", "--train_data", default='xsub_train_rgb.csv', help='Path to training data')
 parser.add_argument("-ev_d", "--eval_data", default='xsub_val_rgb.csv', help='Path to eval data')
 parser.add_argument("-ts_d", "--test_data", help='Path to test data')
 parser.add_argument("-o", "--output", help='Path to save autoencoder weights', default='./autoencoder_weights')
 parser.add_argument("-e", "--epochs", type=int, default=100, help='Number of epochs to train model for')
 parser.add_argument("-dropout", "--dropout", type=float, default=0.2, help='Dropout value, default is 0.2')
-parser.add_argument("-t", "--tr_type", default='video', help='Train on video or skeleton')
+parser.add_argument("-t", "--tr_type", default='skeleton', help='Train on video or skeleton')
+parser.add_argument("-r", "--resume_bool", default=False, help='Train on video or skeleton')
+parser.add_argument("-cp", "--check_point", help="path to load autoencoder from", default="autoencoder_weights/subject_skeleton_autoencoder_int_rgb.pth")
 
 
 args = parser.parse_args()
@@ -158,17 +159,26 @@ logging.basicConfig(filename=LOG_FILENAME,level=logging.DEBUG)
 train_dataset = SkeletonsDataset(args.train_data, args.batch_size)
 train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=False)
 
-# eval_dataset = SkeletonsDataset(args.eval_data, args.eval_batch_size)
-# eval_loader = DataLoader(eval_dataset, batch_size=args.eval_batch_size, shuffle=False, **kwargs)
+eval_dataset = SkeletonsDataset(args.eval_data, args.eval_batch_size)
+eval_loader = DataLoader(eval_dataset, batch_size=args.eval_batch_size, shuffle=False)
 create_dir(args.output)
+
 seq_len =1
 num_features = 100
 model = simple_autoencoder().cuda()
+
+if args.resume_bool:
+    # Resuming the model from the specific checkpoint
+    model = simple_autoencoder()
+    model.load_state_dict(torch.load(args.check_point))
+
 #RAE(seq_len, num_features, 75)
 if args.tr_type == 'video':
-    model = train_model(model, train_loader, 0.001, args.epochs, logging, args.output, 6000)
+    model = train_model(model, train_loader, eval_loader, 0.001, args.epochs, logging, args.output, 6000)
 else:
-    model = train_model(model, train_loader, 0.001, args.epochs, logging, args.output, 100)
+    model = train_model(model, train_loader, eval_loader, 0.001, args.epochs, logging, args.output, 100)
+
+
 
 #torch.save(model.state_dict(), './sim_autoencoder.pth')
 # encoder, decoder, embeddings, f_loss = QuickEncode(
