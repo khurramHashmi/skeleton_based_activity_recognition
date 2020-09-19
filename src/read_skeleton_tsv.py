@@ -2,19 +2,20 @@
 import os
 import sys
 import csv
+import tqdm
 import argparse
 import itertools
 import numpy as np
 import pandas as pd
+from utils import create_dir
 
 def gen_data(args):
 
-    if not os.path.exists(args.out_path):
-        os.mkdir(args.out_path)
     # list of ids to be used for training subject wise view.
     training_subjects = [
         1, 2, 4, 5, 8, 9, 13, 14, 15, 16, 17, 18, 19, 25, 27, 28, 31, 34, 35, 38
     ]
+    training_cameras = [2, 3]
     location_row = []
     #iterate over the whole dataset and return the max skeletons
     #It is needed to make the size of each video sequence same
@@ -65,11 +66,9 @@ def gen_data(args):
     count_prob = 0
     path_list = []
     current_length = []
-
-    for filename in os.listdir(args.data_path):
-
-        if file_count >= 500: # 1000 for training
-            break
+    total_files = os.listdir(args.data_path)
+    for i in tqdm.tqdm(range(len(total_files))): #os.listdir(args.data_path):
+        filename = total_files[i]
         train_list = []
         video_sequence = []
         # reading skeleton data
@@ -83,16 +82,18 @@ def gen_data(args):
 
         if args.benchmark=='xsub':
             istraining = (subject_id in training_subjects)
+        if args.benchmark == 'xview':
+            istraining = (camera_id in training_cameras)
+ 
+        if args.part == 'train':
+            issample = istraining
+        elif args.part == 'val':
+            issample = not (istraining)
+        else:
+            raise ValueError()
 
-            if args.part == 'train':
-                issample = istraining
-            elif args.part == 'val':
-                issample = not (istraining)
-            else:
-                raise ValueError()
-
-            if not issample:
-                continue # skip the file since its not part of either training or validation
+        if not issample:
+            continue # skip the file since its not part of either training or validation
 
         skeleton_data = np.load(args.data_path + filename, allow_pickle=True).item()
         skeleton_sequence = []
@@ -104,8 +105,7 @@ def gen_data(args):
         #since label for all sequences is same
         output_label = skeleton_data["file_name"][len(skeleton_data["file_name"]) - 2]
         output_label += skeleton_data["file_name"][len(skeleton_data["file_name"]) - 1]
-        current_length.append(len(skeleton_data["nbodys"]))
-    
+
         try:
             for frame_count in range(len(skeleton_data["nbodys"])):
                 # person_count = 0
@@ -114,16 +114,16 @@ def gen_data(args):
                     joint_count = 1
 
                     for joint_count in range(1, 26):
-                        rgb_body_number = "skel_body" + str(person_count) # now writing skeletons
+                        rgb_body_number = "rgb_body" + str(person_count) # now writing skeletons
                         connecting_joints = connecting_joint[str(joint_count)]
 
                         # Calculating distance between two fromes on each joints then take mean
-                        x1 = (skeleton_data[rgb_body_number][frame_count][joint_count - 1][0])
-                        y1 = (skeleton_data[rgb_body_number][frame_count][joint_count - 1][1])
-                        z1 = (skeleton_data[rgb_body_number][frame_count][joint_count - 1][2])
+                        x1 = int(skeleton_data[rgb_body_number][frame_count][joint_count - 1][0])
+                        y1 = int(skeleton_data[rgb_body_number][frame_count][joint_count - 1][1])
+                        # z1 = (skeleton_data[rgb_body_number][frame_count][joint_count - 1][2])
                         a_vec.append(x1)
                         a_vec.append(y1)
-                        a_vec.append(z1)
+ #                       a_vec.append(z1)
 
                         # Connecting joints code for later use
                         #             for next_joint in connecting_joints:
@@ -141,21 +141,17 @@ def gen_data(args):
                 skeleton_sequence.append(a_vec)
 
             out_labels = []
-            for i in range(max_skel_num): #instead of calling function again, just replace it with a variable
+            current_length.append(len(skeleton_data["nbodys"]))
+            for i in range(len(skeleton_data["nbodys"])): #instead of calling function again, just replace it with a variable
                 out_labels.append(int(output_label))
 
             video_sequence.append(out_labels)
+            # temp_vec = [0] * 150
 
-            if len(skeleton_sequence) > check_max:
-                check_max = len(skeleton_sequence)
-                print(check_max)
+            # for i in range(len(skeleton_sequence),max_skel_num):  # padding 0s vector to the maximum size available
+            #     skeleton_sequence.append(temp_vec)                 # making the video size for each activity same
 
-            temp_vec = [0] * 150
-
-            for i in range(len(skeleton_sequence),max_skel_num):  # padding 0s vector to the maximum size available
-                skeleton_sequence.append(temp_vec)                 # making the video size for each activity same
-
-            video_sequence.append(skeleton_sequence[0:150])
+            video_sequence.append(skeleton_sequence)
 
             train_list.append(video_sequence)
             # count = count + 1
@@ -179,7 +175,7 @@ def gen_data(args):
     
     print("PROBLEM IN FILES : ", str(count_prob))
     df = pd.DataFrame(data={'path':pd.Series(path_list), 'frame_count':current_length})
-    df.to_csv(os.path.join('./', args.benchmark+'_'+args.part+'_skel_small.csv'), index=False)
+    df.to_csv(os.path.join('./', args.benchmark+'_'+args.part+'_int.csv'), index=False)
 
 parser = argparse.ArgumentParser(description="Dataset Generator for Skeleton Classification Model")
 parser.add_argument("-d", "--data_path",default='./data/raw_npy/', help="Path to folder containing data")
@@ -187,4 +183,5 @@ parser.add_argument("-o", "--out_path",default='./data/data_skel/val/', help="Pa
 parser.add_argument("-b", "--benchmark", default='xsub', help="Camera view or subject view data generation parameter. xview for camera view, xsub for subject view." )
 parser.add_argument("-p", "--part", default='val', help="Create data for train or validation")
 args = parser.parse_args()
+create_dir(args.out_path)
 gen_data(args)
