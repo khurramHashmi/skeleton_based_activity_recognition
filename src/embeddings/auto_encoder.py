@@ -10,8 +10,8 @@ from torch.nn import CrossEntropyLoss, MSELoss
 #os.chdir("./../")
 from data_source_reader import *
 from model import RAE, simple_autoencoder
-os.chdir("../")
-from utils import create_dir
+#os.chdir("../")
+#from utils import create_dir
 
 os.environ["WANDB_API_KEY"] = "cbf5ed4387d24dbdda68d6de22de808c592f792e"
 os.environ["WANDB_ENTITY"] = "khurram"
@@ -53,7 +53,7 @@ def evaluate(eval_model, eval_loader, reshape_size):
     criterion = MSELoss()
     with torch.no_grad():
         losses = []
-        for data, __, __, __ in eval_loader:
+        for data, __, __, in eval_loader:
 
             seq_true = data.view(-1, reshape_size)
 
@@ -84,7 +84,7 @@ def train_model(model, train_loader, eval_loader, lr, epochs, logging, out_path,
         count_batch = 0
         logging.info('*******Starting Training for epoch {} *******'.format(epoch))
         # iterating over the dataset to create a whole skeleton sequence
-        for data, __, __, __ in train_loader:
+        for data, __, __, in train_loader:
             
             seq_true = data.view(-1, reshape_size)
             
@@ -135,10 +135,10 @@ parser = argparse.ArgumentParser(description="Skeleton Autoencoders training ")
 parser.add_argument("-lr", "--learning_rate", default=5.0, type=float, help="Learning rate of model. Default 5.0")
 parser.add_argument("-b", "--batch_size", default=100, type=int, help="Batch Size for training")
 parser.add_argument("-eb", "--eval_batch_size", default=100, type=int, help="Batch Size for evaluation")
-parser.add_argument("-tr_d", "--train_data", default='xsub_train_rgb.csv', help='Path to training data')
-parser.add_argument("-ev_d", "--eval_data", default='xsub_val_rgb.csv', help='Path to eval data')
+parser.add_argument("-tr_d", "--train_data", default='../xsub_train_norm_rgb.csv', help='Path to training data')
+parser.add_argument("-ev_d", "--eval_data", default='../xsub_val_norm_rgb.csv', help='Path to eval data')
 parser.add_argument("-ts_d", "--test_data", help='Path to test data')
-parser.add_argument("-o", "--output", help='Path to save autoencoder weights', default='./autoencoder_weights')
+parser.add_argument("-o", "--output", help='Path to save autoencoder weights', default='/netscratch/m_ahmed/skeleton_activity/autoencoder_weights_skeleton/')
 parser.add_argument("-e", "--epochs", type=int, default=100, help='Number of epochs to train model for')
 parser.add_argument("-dropout", "--dropout", type=float, default=0.2, help='Dropout value, default is 0.2')
 parser.add_argument("-t", "--tr_type", default='skeleton', help='Train on video or skeleton')
@@ -150,18 +150,19 @@ args = parser.parse_args()
 # initalize wandb
 wandb.init(project="Auto Encoders", reinit=True)
 
-LOG_FILENAME = 'experiment_Skeleton_RGB.log'
+LOG_FILENAME = 'experiment_real_Skeleton_RGB.log'
 # Set up a specific logger with our desired output level
 my_logger = logging.getLogger('MyLogger')
 my_logger.setLevel(logging.INFO)
 logging.basicConfig(filename=LOG_FILENAME,level=logging.DEBUG)
 
-train_dataset = SkeletonsDataset(args.train_data, args.batch_size)
+train_dataset = SkeletonsDataset(args.train_data, args.batch_size, '../xsub_train_mean_std.pickle', '../xsub_val_mean_std.pickle')
 train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=False)
 
-eval_dataset = SkeletonsDataset(args.eval_data, args.eval_batch_size)
+eval_dataset = SkeletonsDataset(args.eval_data, args.eval_batch_size, '../xsub_train_mean_std.pickle', '../xsub_val_mean_std.pickle')
 eval_loader = DataLoader(eval_dataset, batch_size=args.eval_batch_size, shuffle=False)
-create_dir(args.output)
+if not os.path.exists(args.output):
+    os.mkdir(args.output)
 
 seq_len =1
 num_features = 100
@@ -174,7 +175,7 @@ if args.resume_bool:
 
 #RAE(seq_len, num_features, 75)
 if args.tr_type == 'video':
-    model = train_model(model, train_loader, eval_loader, 0.001, args.epochs, logging, args.output, 6000)
+    model = train_model(model, train_loader, eval_loader, 0.001, args.epochs, logging, args.output, 7500)
 else:
     model = train_model(model, train_loader, eval_loader, 0.001, args.epochs, logging, args.output, 100)
 

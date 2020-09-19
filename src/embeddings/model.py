@@ -114,26 +114,33 @@ class simple_autoencoder(nn.Module):
     def __init__(self):
         super(simple_autoencoder, self).__init__()
         self.encoder = nn.Sequential(
-            nn.Linear(100, 64),
+            nn.Linear(100, 100),
             nn.ReLU(True),
-            nn.Linear(64, 32),
+            nn.Linear(100, 78),
             nn.ReLU(True),
-            nn.Linear(32, 16),
+            nn.Linear(78, 64),
             nn.ReLU(True),
-            nn.Linear(16, 8))
+            nn.Linear(64, 32))
         self.decoder = nn.Sequential(
-            nn.Linear(8, 16),
-            nn.ReLU(True),
-            nn.Linear(16, 32),
-            nn.ReLU(True),
             nn.Linear(32, 64),
             nn.ReLU(True),
-            nn.Linear(64, 100),
+            nn.Linear(64, 78),
+            nn.ReLU(True),
+            nn.Linear(78, 100),
+            nn.ReLU(True),
+            nn.Linear(100, 100),
             nn.ReLU(True))
+
+        # self.classifier = nn.Sequential(
+        #     nn.Linear(100, 60),
+        #     nn.Dropout(0.2),
+        #     nn.Softmax(dim=-1)
+        # )
 
     def forward(self, x):
         x = self.encoder(x)
         x = self.decoder(x)
+        # x = self.classifier(x)
         return x
 
 

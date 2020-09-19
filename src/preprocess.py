@@ -147,7 +147,7 @@ def normalize(path='', out_path='./', pickle_output='./', part='train'):
         pickle.dump({'mean': np.mean(mean_list), 'std': np.mean(std_list)}, handle)
 
     path_df = pd.DataFrame({'path':file_path})
-    path_df.to_csv('./' + os.path.basename(path).split('_')[0] + '_'+part+'_norm_rgb.csv')
+    path_df.to_csv('./' + os.path.basename(path).split('_')[0] + '_'+part+'_norm_rgb.csv', index=False)
 
 parser = argparse.ArgumentParser(description="Normalize dataset")
 parser.add_argument("-p", "--part", default='train', help='Run on training data or val data')
