@@ -7,13 +7,13 @@ from model_transformer import *
 from data_source_reader_video import SkeletonsDataset
 from torch.utils.data import DataLoader
 from embeddings.model import SimpleAutoEncoderVideo_128
-from embeddings.model import classification_network_128
+from embeddings.model import ClassificationConv1D
 
 class_correct = list(0. for i in range(60))
 class_total = list(0. for i in range(60))
 
 # env vairables
-# os.environ["WANDB_MODE"] = "dryrun"
+os.environ["WANDB_MODE"] = "dryrun"
 os.environ["WANDB_API_KEY"] = "cbf5ed4387d24dbdda68d6de22de808c592f792e"
 os.environ["WANDB_ENTITY"] = "khurram"
 
@@ -181,9 +181,9 @@ def calculate_accuracy(class_correct, class_total):
 
 # training arguments
 parser = argparse.ArgumentParser(description="Skeleton Classification Training Script")
-parser.add_argument("-lr", "--learning_rate", default=0.1, type=float, help="Learning rate of model. Default 5.0")
-parser.add_argument("-b", "--batch_size", default=100, type=int, help="Batch Size for training")
-parser.add_argument("-eb", "--eval_batch_size", default=100, type=int, help="Batch Size for evaluation")
+parser.add_argument("-lr", "--learning_rate", default=0.01, type=float, help="Learning rate of model. Default 5.0")
+parser.add_argument("-b", "--batch_size", default=10, type=int, help="Batch Size for training")
+parser.add_argument("-eb", "--eval_batch_size", default=10, type=int, help="Batch Size for evaluation")
 parser.add_argument("-tr_d", "--train_data", default='./xsub_val_norm_rgb.csv', help='Path to training data')
 parser.add_argument("-ev_d", "--eval_data", default='./xsub_val_norm_rgb.csv', help='Path to eval data')
 parser.add_argument("-ts_d", "--test_data", help='Path to test data')
@@ -192,9 +192,9 @@ parser.add_argument("-hid_dim", "--nhid", type=int, default=8, help='Number of h
 parser.add_argument("-dropout", "--dropout", type=float, default=0.2, help='Dropout value, default is 0.2')
 parser.add_argument("-t", "--train", help="Put Model in training mode", default=True)
 parser.add_argument("-f", "--frame_count", help="Frame count per video", default=60)
-parser.add_argument("-c", "--checkpoint", help="path to store model weights", default="./logs/ae_classification_128_")
+parser.add_argument("-c", "--checkpoint", help="path to store model weights", default="./logs/ae_classification_128_conv_")
 parser.add_argument("-rc", "--resume_checkpoint", help="path to store model weights", default="./logs/output_2020-09-22 12:37:39.576905/epoch_2020-09-23 06:34:34.803320")
-parser.add_argument("-r", "--resume_bool", default=True, help='Whether to resume training or start from scratch')
+parser.add_argument("-r", "--resume_bool", default=False, help='Whether to resume training or start from scratch')
 parser.add_argument("-ac", "--ae_checkpoint", help="path to load autoencoder from",
                     default="./autoencoder_weights/subject_video_ae_int_rgb.pth")
 
@@ -236,7 +236,7 @@ if args.train:
     '''
         Loading multi-class classification model
     '''
-    model = classification_network_128(num_feature=128, num_class=len(classes))
+    model = ClassificationConv1D(num_feature=128, num_class=len(classes))
     model.to(device)
 
     criterion = nn.CrossEntropyLoss()

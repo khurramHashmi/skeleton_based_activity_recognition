@@ -6,7 +6,7 @@ from torch.nn import TransformerEncoder, TransformerEncoderLayer
 
 class PositionalEncoding(nn.Module):
 
-    def __init__(self, d_model, dropout=0.1, max_len=150): #max_length needs to be check
+    def __init__(self, d_model, dropout=0.1, max_len=60*2): #max_length needs to be check
         super(PositionalEncoding, self).__init__()
         self.dropout = nn.Dropout(p=dropout)
 
@@ -27,20 +27,21 @@ class PositionalEncoding(nn.Module):
 
 class TransformerModel(nn.Module):
 
-    def __init__(self, ntoken, ninp, nhead, nhid, nlayers, dropout=0.5):
+    def __init__(self, ntoken, ninp, nhead, nhid, nlayers, batch_size, ndims, dropout=0.5):
         super(TransformerModel, self).__init__()
         self.model_type = 'Transformer'
         self.src_mask = None
-        self.pos_encoder = PositionalEncoding(ninp, dropout)
+        self.pos_encoder = PositionalEncoding(ninp, dropout, (batch_size*ndims))
         encoder_layers = TransformerEncoderLayer(ninp, nhead, nhid, dropout)
         self.transformer_encoder = TransformerEncoder(encoder_layers, nlayers)
         self.encoder = nn.Embedding(ntoken, ninp)
         self.ninp = ninp
 
-        self.bn1 = nn.BatchNorm1d(100 * 150)
+        # self.bn1 = nn.BatchNorm1d(100 * 150)
 
         # self.decoder = nn.Linear(10 * 100 * ninp, 10 * ntoken) #previous
-        self.decoder = nn.Linear(10 * 100 * ninp, 10*ntoken) # changed to add batch_normalization
+
+        self.decoder = nn.Linear((batch_size*ndims) * (batch_size*ndims) * ninp, batch_size*ntoken) # changed to add batch_normalization
 
         # self.dense = nn.Linear(ntoken, ntoken)
         # self.dropout = nn.Dropout(0.2)
@@ -68,15 +69,10 @@ class TransformerModel(nn.Module):
         src = self.pos_encoder(src)
         output = self.transformer_encoder(src, self.src_mask)
 
-        output = output.view(10, -1)
-
-        output = self.bn1(output)
-
+        # output = output.view(100, -1)
+        # output = self.bn1(output)
         output = output.view(-1)
         output = self.decoder(output)
-
-
-
         # output = self.dropout(output)
         # output = self.dense(output)
         # output = torch.tanh(output)

@@ -6,8 +6,8 @@ from utils import *
 from model_transformer import *
 from data_source_reader_video import SkeletonsDataset
 from torch.utils.data import DataLoader
-from embeddings.model import SimpleAutoEncoderVideo_128
-from embeddings.model import classification_network_128
+from embeddings.main_model import classification_network_128
+import torch.nn as nn
 
 class_correct = list(0. for i in range(60))
 class_total = list(0. for i in range(60))
@@ -18,7 +18,7 @@ os.environ["WANDB_API_KEY"] = "cbf5ed4387d24dbdda68d6de22de808c592f792e"
 os.environ["WANDB_ENTITY"] = "khurram"
 
 
-def train(step_count_tb, reshape_size, draw_graph=False, graph_out=''):
+def train(step_count_tb, batch_size):
     '''
         Function for training 1 epoch of network
         args:
@@ -40,27 +40,42 @@ def train(step_count_tb, reshape_size, draw_graph=False, graph_out=''):
     batch = 10
     batch_count = 0
     ntokens = len(classes)
+
+    sum_skel_loss = []
+    sum_video_loss = []
+    sum_class_loss = []
+
     for data, targets, __ in train_loader:
 
-        # Calculate embeddings
-        embeddings = extract_embeddings(data, reshape_size)
-        data = embeddings.to(device)
+        data = data.to(device)
+        skel_data = data.view(75 * batch_size, 100)
         targets = targets.view(-1).to(device)
         optimizer.zero_grad()
-        output = model(data)
+
+        skel_decoded, video_decoded, pred_class = model(data)
+
+        # calculate all the losses and perform backprop
+        skel_loss = skel_criterion(skel_decoded, skel_data)
+        video_loss = video_criterion(video_decoded, skel_data)
+        class_loss = class_criterion(pred_class.view(-1, len(classes)), targets)
 
         # Calculating accuracies
-        _, predicted = torch.max(output.view(-1, ntokens), 1)
+        _, predicted = torch.max(pred_class.view(-1, ntokens), 1)
         c = (predicted == targets).squeeze()
-
 
         for i in range(args.batch_size):
             label = targets[i]
             class_correct[label] += c[i].item()
             class_total[label] = class_total[label] + 1
 
-        # calculate loss and perform backprop
-        loss = criterion(output.view(-1, ntokens), targets)
+        skel_loss, video_loss, class_loss = nomalize_losses(skel_loss, video_loss, class_loss)
+
+        sum_skel_loss.append(skel_loss.item())
+        sum_video_loss.append(video_loss.item())
+        sum_class_loss.append(class_loss.item())
+
+        loss = skel_loss + video_loss + class_loss
+
         loss.backward()
         torch.nn.utils.clip_grad_norm_(model.parameters(), 0.5)
         optimizer.step()
@@ -76,9 +91,9 @@ def train(step_count_tb, reshape_size, draw_graph=False, graph_out=''):
             elapsed = time.time() - start_time
             print('| epoch {:3d} | {:5d}/{:5d} batches | '
                   'lr {:02.4f} | ms/batch {:5.2f} | '
-                  'loss {:5.2f} | ppl {:8.2f}'.format(
+                  'loss {:5.2f} '.format(
                 epoch, batch, len(data), optimizer.param_groups[0]['lr'],
-                elapsed * 1000 / log_interval, cur_loss, math.exp(cur_loss)))
+                elapsed * 1000 / log_interval, cur_loss))
             print(" Loss For each 50 batch : {}".format(total_loss))
             total_loss = 0
             step_count_tb += 1
@@ -87,21 +102,16 @@ def train(step_count_tb, reshape_size, draw_graph=False, graph_out=''):
         batch_count += 1
         # wandb.sklearn.plot_confusion_matrix(targets.cpu().numpy().squeeze(), predicted.cpu().numpy(), labels=classes)
 
+    print(" Mean Skel LOSS : {} and STD DEV : {}".format(np.mean(sum_skel_loss), np.std(sum_skel_loss)))
+    print(" Mean Video LOSS : {} and STD DEV : {}".format(np.mean(sum_video_loss), np.std(sum_video_loss)))
+    print(" Mean Class LOSS : {} and STD DEV : {}".format(np.mean(sum_class_loss), np.std(sum_class_loss)))
+    print(" TOTAL LOSS : {} and SIZE DATA LOADER : {}".format(sum_curl_loss, len(train_loader)))
     train_acc = calculate_accuracy(class_correct, class_total)
     return sum_curl_loss / len(train_loader), train_acc
     # write_to_graph('train/loss', sum_curl_loss/len(train_loader), writer, step_count_tb)
 
 
-def extract_embeddings(example, reshape_size):
-    # preprocessing data
-    example = example.view(-1, reshape_size).to(device)
-    # forward pass to get embeddings
-    output = ae_model.encoder(example)
-
-    return output
-
-
-def evaluate(eval_model, eval_loader, reshape_size, draw_img=False, visualize=False, out_path=''):
+def evaluate(eval_model, eval_loader, batch_size, draw_img=False, visualize=False, out_path=''):
     '''
         Function to evaluate model performance
         args:
@@ -127,30 +137,40 @@ def evaluate(eval_model, eval_loader, reshape_size, draw_img=False, visualize=Fa
 
     with torch.no_grad():
         for data, targets, path in eval_loader:
-            # giving the tensors to Cuda
-            embeddings = extract_embeddings(data, reshape_size)
-            data = embeddings.to(device)
-            targets_.append(targets.numpy().squeeze())
-            targets = targets.view(-1).to(device)  # Linearize the target tensor to match the shape
-            output = eval_model(data)
+
+            data = data.to(device)
+            skel_data = data.view(75 * batch_size, 100)
+            targets = targets.view(-1).to(device)
+            optimizer.zero_grad()
+
+            skel_decoded, video_decoded, pred_class = model(data)
+
+            # calculate all the losses and perform backprop
+            skel_loss = skel_criterion(skel_decoded, skel_data)
+            video_loss = video_criterion(video_decoded, skel_data)
+            class_loss = class_criterion(pred_class.view(-1, len(classes)), targets)
+
+            skel_loss, video_loss, class_loss = nomalize_losses(skel_loss, video_loss, class_loss)
 
             # Calculating accuracies
-            _, predicted = torch.max(output.view(-1, ntokens), 1)
-            predicted_.append(predicted.cpu().numpy())
+            _, predicted = torch.max(pred_class.view(-1, ntokens), 1)
             c = (predicted == targets).squeeze()
+
             for i in range(args.batch_size):
                 label = targets[i]
                 class_correct[label] += c[i].item()
                 class_total[label] = class_total[label] + 1
 
-            total_loss += len(data) * criterion(output.view(-1, len(classes)), targets).item()
+            loss = skel_loss + video_loss + class_loss
+
+            total_loss += loss.item()
 
             if visualize:  # visualize skeletons
                 create_dir(out_path)
                 preds = idx_class(classes, predicted.cpu().numpy())
                 visualize_skeleton(path[0], preds, out_path)
 
-        total_samples = (len(eval_loader) * args.eval_batch_size)
+        total_samples = (len(eval_loader))
 
     # wandb.sklearn.plot_confusion_matrix(np.array(targets_), np.array(predicted_), labels=classes)
     if draw_img:  # draw confusion_matrix
@@ -159,13 +179,48 @@ def evaluate(eval_model, eval_loader, reshape_size, draw_img=False, visualize=Fa
         draw_confusion_matrix(targets_, predicted_, './confusion_matrix', classes)
 
     val_acc = calculate_accuracy(class_correct, class_total)
+    print(" TOTAL LOSS : {} and total samples : {}".format(total_loss, total_samples))
     return total_loss / total_samples, val_acc
+
+
+def nomalize_losses(skel_loss, video_loss, class_loss):
+    '''
+    Purpose: Normalizing the losses
+    and rescaling them to get better results
+
+    :param skel_loss: skel_decoding loss
+    :param video_loss: video_decoding loss
+    :param class_loss: Classification loss
+    :return: skel_loss, video_loss, class_loss
+    '''
+
+    # Previous configuration
+    scale_value = 50
+    # skel_loss = (class_loss / skel_loss) * skel_loss * (scale_value -15)
+    # video_loss = (class_loss / video_loss) * video_loss * (scale_value - 10)
+    # class_loss = class_loss * scale_value
+
+    # Current configuration
+
+    skel_loss = (class_loss / skel_loss) * skel_loss * (scale_value -15)
+    video_loss = (class_loss / video_loss) * video_loss * (scale_value - 10)
+    class_loss = class_loss * scale_value
+
+    '''
+    Another normalization Strategy but not very effective at the moment
+    skel_loss = (skel_loss - 670739) / 98927
+    video_loss = (video_loss - 664199) / 113842
+    class_loss = (class_loss - 413) / 4
+    skel_loss = skel_loss * (-1) if skel_loss < 0 else skel_loss
+    video_loss = video_loss * (-1) if video_loss < 0 else video_loss
+    class_loss = class_loss * (-1) if class_loss < 0 else class_loss
+    '''
+    return skel_loss, video_loss, class_loss
 
 
 def calculate_accuracy(class_correct, class_total):
     acc_sum = 0
     for i in range(len(classes)):
-        print(class_total[i])
         class_accuracy = 100 * class_correct[i] / class_total[i]
 
         # error_rate = 100 - class_accuracy
@@ -181,10 +236,10 @@ def calculate_accuracy(class_correct, class_total):
 
 # training arguments
 parser = argparse.ArgumentParser(description="Skeleton Classification Training Script")
-parser.add_argument("-lr", "--learning_rate", default=0.1, type=float, help="Learning rate of model. Default 5.0")
+parser.add_argument("-lr", "--learning_rate", default=0.001, type=float, help="Learning rate of model. Default 5.0")
 parser.add_argument("-b", "--batch_size", default=100, type=int, help="Batch Size for training")
 parser.add_argument("-eb", "--eval_batch_size", default=100, type=int, help="Batch Size for evaluation")
-parser.add_argument("-tr_d", "--train_data", default='./xsub_val_norm_rgb.csv', help='Path to training data')
+parser.add_argument("-tr_d", "--train_data", default='./xsub_train_norm_rgb.csv', help='Path to training data')
 parser.add_argument("-ev_d", "--eval_data", default='./xsub_val_norm_rgb.csv', help='Path to eval data')
 parser.add_argument("-ts_d", "--test_data", help='Path to test data')
 parser.add_argument("-e", "--epochs", type=int, default=200, help='Number of epochs to train model for')
@@ -192,9 +247,10 @@ parser.add_argument("-hid_dim", "--nhid", type=int, default=8, help='Number of h
 parser.add_argument("-dropout", "--dropout", type=float, default=0.2, help='Dropout value, default is 0.2')
 parser.add_argument("-t", "--train", help="Put Model in training mode", default=True)
 parser.add_argument("-f", "--frame_count", help="Frame count per video", default=60)
-parser.add_argument("-c", "--checkpoint", help="path to store model weights", default="./logs/ae_classification_128_")
+parser.add_argument("-c", "--checkpoint", help="path to store model weights", default="./logs/fourth_tt_100_shuffle_False_")
+parser.add_argument("-bs", "--batch_shuffle", help="path to store model weights", default=True)
 parser.add_argument("-rc", "--resume_checkpoint", help="path to store model weights", default="./logs/output_2020-09-22 12:37:39.576905/epoch_2020-09-23 06:34:34.803320")
-parser.add_argument("-r", "--resume_bool", default=True, help='Whether to resume training or start from scratch')
+parser.add_argument("-r", "--resume_bool", default=False, help='Whether to resume training or start from scratch')
 parser.add_argument("-ac", "--ae_checkpoint", help="path to load autoencoder from",
                     default="./autoencoder_weights/subject_video_ae_int_rgb.pth")
 
@@ -222,32 +278,26 @@ kwargs = {'num_workers': 1, 'pin_memory': True} if device == 'cuda' else {}
 
 if args.train:
 
-    # train_dataset = SkeletonsDataset(args.train_data, args.batch_size, None,None)
-
-    train_dataset = SkeletonsDataset(args.train_data, args.batch_size, './data/data_rgb_new/xsub_val_mean_std.pickle', './data/data_rgb_new/xsub_val_mean_std.pickle')
-    train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=False, **kwargs)
-    print("length of train data : {}".format(train_dataset.__len__()))
-    # eval_dataset = SkeletonsDataset(args.eval_data, args.eval_batch_size, None,None)
-    eval_dataset = SkeletonsDataset(args.train_data, args.batch_size, './data/data_rgb_new/xsub_val_mean_std.pickle', './data/data_rgb_new/xsub_val_mean_std.pickle') #only val is using for now
-    eval_loader = DataLoader(eval_dataset, batch_size=args.eval_batch_size, shuffle=False, **kwargs)
-    print("length of train data : {}".format(eval_dataset.__len__()))
-
+    train_dataset = SkeletonsDataset(args.train_data, args.batch_size, './data/data_rgb_new/xsub_train_mean_std.pickle', './data/data_rgb_new/xsub_val_mean_std.pickle')
+    train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=args.batch_shuffle, **kwargs)
+    eval_dataset = SkeletonsDataset(args.eval_data, args.eval_batch_size, './data/data_rgb_new/xsub_train_mean_std.pickle', './data/data_rgb_new/xsub_val_mean_std.pickle')
+    eval_loader = DataLoader(eval_dataset, batch_size=args.eval_batch_size, shuffle=args.batch_shuffle, **kwargs)
 
     '''
-        Loading multi-class classification model
+        Loading all the models here 
+        Classification Network     
+        Defining the criterion for losses
     '''
-    model = classification_network_128(num_feature=128, num_class=len(classes))
-    model.to(device)
+    model = classification_network_128(num_feature=128, num_class=len(classes), batch_size=args.batch_size).to(device)
 
-    criterion = nn.CrossEntropyLoss()
+    skel_criterion = nn.MSELoss(size_average=False)
+    video_criterion = nn.MSELoss(size_average=False)
+    class_criterion = nn.CrossEntropyLoss(size_average=False)
+
     optimizer = torch.optim.Adam(model.parameters(), lr=args.learning_rate)
+
     print(model)
 
-
-    # load autoencoder
-    ae_model = SimpleAutoEncoderVideo_128()
-    ae_model.load_state_dict(torch.load(args.ae_checkpoint))
-    ae_model.eval().to(device)
 
     best_val_loss = float("inf")
     max_epochs = args.epochs  # number of epochs
@@ -259,14 +309,9 @@ if args.train:
 
     output_path = args.checkpoint + "output_" + str(current_date_time)
     create_dir(output_path)  # creating the directory where epochs will be saved
-    graph_out = os.path.join(output_path, 'graph')
-    create_dir(graph_out)
     skeleton_output = os.path.join(output_path, 'skeleton_diagrams')
-    print('Saving graph in dir: ', graph_out)
 
     output_log = []
-    draw_graph = True
-
     '''
     Resuming from the specific check point
     '''
@@ -276,38 +321,36 @@ if args.train:
         model.load_state_dict(checkpoint['model_state_dict'])
 
     lr_change_count = 0
+    epoch_output_path = output_path + "/epoch_" + str(current_date_time)
     for epoch in range(0, max_epochs):
 
         epoch_start_time = time.time()
         current_date_time = str(datetime.datetime.now()).split(",")[0]
 
-        epoch_output_path = output_path + "/epoch_" + str(current_date_time)
-        tr_loss, tr_acc = train(step_count_tb, 7500, draw_graph, graph_out)
-        draw_graph = False
+
+        tr_loss, tr_acc = train(step_count_tb, args.batch_size)
+
         print('| end of epoch {:3d} | time: {:5.2f}s | Train loss {:5.4f} | '
-              'Train ppl {:8.2f} | Train Accuracy '.format(epoch, (time.time() - epoch_start_time),
-                                         tr_loss, math.exp(tr_loss), tr_acc))
+              ' Train Accuracy '.format(epoch, (time.time() - epoch_start_time),
+                                         tr_loss, tr_acc))
 
         if epoch == max_epochs - 1:
             print('***** in this line part *****')
-            val_loss, val_acc = evaluate(model, eval_loader, 7500, draw_img=False, visualize=False,
+            val_loss, val_acc = evaluate(model, eval_loader, args.batch_size, draw_img=False, visualize=False,
                                          out_path=skeleton_output)
         else:
-            val_loss, val_acc = evaluate(model, eval_loader, 7500)
+            val_loss, val_acc = evaluate(model, eval_loader, args.batch_size)
 
         output_log.append(
             'train_loss: ' + str(tr_loss) + '\t' + 'training_acc: ' + str(tr_acc) + '\t' + 'val_loss: ' + str(
                 val_loss) + '\t' + 'val_acc: ' + str(val_acc) + '\n')
-        wandb.log({"train_loss": tr_loss, "training_acc": tr_acc, "val_loss": val_loss, "val_acc": val_acc,
+        wandb.log({"train_loss": tr_loss, "training_acc": tr_acc, "test_loss": val_loss, "test_acc": val_acc,
                    "learing_rate": optimizer.param_groups[0]['lr']})
         print('-' * 89)
-        print('| end of epoch {:3d} | time: {:5.2f}s | valid loss {:5.4f} | '
-              'valid ppl {:8.2f}'.format(epoch, (time.time() - epoch_start_time),
-                                         val_loss, math.exp(val_loss)))
+        print('| end of epoch {:3d} | time: {:5.2f}s | valid loss {:5.4f} | '.format(epoch, (time.time() - epoch_start_time),
+                                         val_loss))
 
-        output_log.append('| end of epoch {:3d} | time: {:5.2f}s | valid loss {:5.4f} | '
-                          'valid ppl {:8.2f}'.format(epoch, (time.time() - epoch_start_time),
-                                                     val_loss, math.exp(val_loss)))
+        output_log.append('| end of epoch {:3d} | time: {:5.2f}s | valid loss {:5.4f} | '.format(epoch, (time.time() - epoch_start_time) ,val_loss))
         output_log.append('\n')
         print('-' * 89)
         # write_to_graph('Val/loss', val_loss, writer, epoch)
@@ -323,7 +366,7 @@ if args.train:
             }, epoch_output_path)
 
 
-        if epoch % 3 == 0 and lr_change_count < 3: #reducing learning rate for experiment
+        if epoch % 100 == 0 and lr_change_count < 3: #reducing learning rate for experiment
             for param_group in optimizer.param_groups:
                 param_group["lr"] = param_group["lr"] * (0.993 ** epoch)
             lr_change_count +=1

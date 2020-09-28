@@ -6,8 +6,8 @@ from utils import *
 from model_transformer import *
 from data_source_reader_video import SkeletonsDataset
 from torch.utils.data import DataLoader
-from embeddings.model import SimpleAutoEncoderVideo_128
-from embeddings.model import classification_network_128
+from embeddings.model import SimpleAutoEncoderVideo
+from embeddings.model import classification_network
 
 class_correct = list(0. for i in range(60))
 class_total = list(0. for i in range(60))
@@ -181,20 +181,20 @@ def calculate_accuracy(class_correct, class_total):
 
 # training arguments
 parser = argparse.ArgumentParser(description="Skeleton Classification Training Script")
-parser.add_argument("-lr", "--learning_rate", default=0.1, type=float, help="Learning rate of model. Default 5.0")
-parser.add_argument("-b", "--batch_size", default=100, type=int, help="Batch Size for training")
-parser.add_argument("-eb", "--eval_batch_size", default=100, type=int, help="Batch Size for evaluation")
+parser.add_argument("-lr", "--learning_rate", default=0.01, type=float, help="Learning rate of model. Default 5.0")
+parser.add_argument("-b", "--batch_size", default=50, type=int, help="Batch Size for training")
+parser.add_argument("-eb", "--eval_batch_size", default=50, type=int, help="Batch Size for evaluation")
 parser.add_argument("-tr_d", "--train_data", default='./xsub_val_norm_rgb.csv', help='Path to training data')
 parser.add_argument("-ev_d", "--eval_data", default='./xsub_val_norm_rgb.csv', help='Path to eval data')
 parser.add_argument("-ts_d", "--test_data", help='Path to test data')
-parser.add_argument("-e", "--epochs", type=int, default=200, help='Number of epochs to train model for')
+parser.add_argument("-e", "--epochs", type=int, default=100, help='Number of epochs to train model for')
 parser.add_argument("-hid_dim", "--nhid", type=int, default=8, help='Number of hidden dimenstions, default is 100')
 parser.add_argument("-dropout", "--dropout", type=float, default=0.2, help='Dropout value, default is 0.2')
 parser.add_argument("-t", "--train", help="Put Model in training mode", default=True)
 parser.add_argument("-f", "--frame_count", help="Frame count per video", default=60)
-parser.add_argument("-c", "--checkpoint", help="path to store model weights", default="./logs/ae_classification_128_")
-parser.add_argument("-rc", "--resume_checkpoint", help="path to store model weights", default="./logs/output_2020-09-22 12:37:39.576905/epoch_2020-09-23 06:34:34.803320")
-parser.add_argument("-r", "--resume_bool", default=True, help='Whether to resume training or start from scratch')
+parser.add_argument("-c", "--checkpoint", help="path to store model weights", default="./logs/")
+parser.add_argument("-rc", "--resume_checkpoint", help="path to store model weights", default="./logs/output_1600710572.0355484/epoch_1600748333.0358984")
+parser.add_argument("-r", "--resume_bool", default=True, help='Train on video or skeleton')
 parser.add_argument("-ac", "--ae_checkpoint", help="path to load autoencoder from",
                     default="./autoencoder_weights/subject_video_ae_int_rgb.pth")
 
@@ -236,7 +236,7 @@ if args.train:
     '''
         Loading multi-class classification model
     '''
-    model = classification_network_128(num_feature=128, num_class=len(classes))
+    model = classification_network(num_feature=128, num_class=len(classes))
     model.to(device)
 
     criterion = nn.CrossEntropyLoss()
@@ -245,7 +245,7 @@ if args.train:
 
 
     # load autoencoder
-    ae_model = SimpleAutoEncoderVideo_128()
+    ae_model = SimpleAutoEncoderVideo()
     ae_model.load_state_dict(torch.load(args.ae_checkpoint))
     ae_model.eval().to(device)
 
@@ -274,8 +274,8 @@ if args.train:
         # Resuming the model from the specific checkpoint
         checkpoint = torch.load(args.resume_checkpoint)
         model.load_state_dict(checkpoint['model_state_dict'])
+        # model.on_load_checkpoint(checkpoint)
 
-    lr_change_count = 0
     for epoch in range(0, max_epochs):
 
         epoch_start_time = time.time()
@@ -321,12 +321,6 @@ if args.train:
                 'optimizer_state_dict': optimizer.state_dict(),
                 'loss': best_val_loss
             }, epoch_output_path)
-
-
-        if epoch % 3 == 0 and lr_change_count < 3: #reducing learning rate for experiment
-            for param_group in optimizer.param_groups:
-                param_group["lr"] = param_group["lr"] * (0.993 ** epoch)
-            lr_change_count +=1
 
     with open(output_path + "_" + "log.txt", "w") as outfile:
         outfile.write("\n".join(output_log))

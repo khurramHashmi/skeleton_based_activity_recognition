@@ -179,9 +179,9 @@ def gen_data(args):
 
 parser = argparse.ArgumentParser(description="Dataset Generator for Skeleton Classification Model")
 parser.add_argument("-d", "--data_path",default='./data/raw_npy/', help="Path to folder containing data")
-parser.add_argument("-o", "--out_path",default='./data/data_skel/val/', help="Path to create tsv file")
+parser.add_argument("-o", "--out_path",default='./data/data_rgb_new/train/', help="Path to create tsv file")
 parser.add_argument("-b", "--benchmark", default='xsub', help="Camera view or subject view data generation parameter. xview for camera view, xsub for subject view." )
-parser.add_argument("-p", "--part", default='val', help="Create data for train or validation")
+parser.add_argument("-p", "--part", default='train', help="Create data for train or validation")
 args = parser.parse_args()
 create_dir(args.out_path)
 gen_data(args)

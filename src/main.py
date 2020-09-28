@@ -1,23 +1,21 @@
 import time
-import sys
-import torch
 import wandb
 import argparse
 from utils import *
 from model_transformer import *
-import torch.nn.functional as F
-from data_source_reader import SkeletonsDataset
-from torch.utils.data import DataLoader, Dataset
+from data_source_reader_video import SkeletonsDataset
+from torch.utils.data import DataLoader
+from embeddings.model import simple_autoencoder
 
 class_correct = list(0. for i in range(60))
 class_total = list(0. for i in range(60))
 
 # env vairables
-os.environ["WANDB_MODE"] = "dryrun"
-#os.environ["WANDB_API_KEY"] = "cbf5ed4387d24dbdda68d6de22de808c592f792e"
-#os.environ["WANDB_ENTITY"] = "khurram"
+# os.environ["WANDB_MODE"] = "dryrun"
+os.environ["WANDB_API_KEY"] = "cbf5ed4387d24dbdda68d6de22de808c592f792e"
+os.environ["WANDB_ENTITY"] = "khurram"
 
-def train(step_count_tb, draw_graph=False, graph_out=''):
+def train(step_count_tb, reshape_size, draw_graph=False, graph_out=''):
 
     '''
         Function for training 1 epoch of network
@@ -41,12 +39,15 @@ def train(step_count_tb, draw_graph=False, graph_out=''):
     batch_count=0    
     for data, targets, __, frame_count in train_loader:
         
-        data = data.to(device)
+
+        # Calculate embeddings
+        embeddings = extract_embeddings(data, reshape_size)
+        data = embeddings.to(device)
         targets = targets.view(-1).to(device)
         optimizer.zero_grad()
         output = model(data)
 
-        #Calculating accuracies
+        # Calculating accuracies
         _, predicted = torch.max(output.view(-1, ntokens), 1)
         c = (predicted == targets).squeeze()
 
@@ -80,19 +81,26 @@ def train(step_count_tb, draw_graph=False, graph_out=''):
             batch = 10
             start_time = time.time()
         batch_count += 1
-        wandb.sklearn.plot_confusion_matrix(targets.cpu().numpy().squeeze(), \
-                                                predicted.cpu().numpy(), labels=classes)
+        # wandb.sklearn.plot_confusion_matrix(targets.cpu().numpy().squeeze(), predicted.cpu().numpy(), labels=classes)
 
         if draw_graph: # whether to draw graph for frame distribution or not
             activity = idx_class(classes, targets.cpu().numpy())
-            barplot('frame_count', 'activity', pd.DataFrame({'frame_count':frame_count.numpy(),
-             'activity':activity}), 'batch_{}'.format(batch_count), graph_out)
+            barplot('activity','frame_count', pd.DataFrame({'activity':activity, 'frame_count':frame_count.numpy()}), 'batch_{}'.format(batch_count), graph_out)
 
     train_acc = calculate_accuracy(class_correct, class_total)
     return sum_curl_loss/len(train_loader), train_acc
     #write_to_graph('train/loss', sum_curl_loss/len(train_loader), writer, step_count_tb)
-    
-def evaluate(eval_model, eval_loader, draw_img=False, visualize=False, out_path=''):
+
+def extract_embeddings(example, reshape_size):
+
+    # preprocessing data
+    example = example.view(-1, reshape_size).to(device)
+    # forward pass to get embeddings
+    output = ae_model.encoder(example)
+
+    return output
+
+def evaluate(eval_model, eval_loader, reshape_size, draw_img=False, visualize=False, out_path=''):
     
     '''
         Function to evaluate model performance
@@ -115,7 +123,8 @@ def evaluate(eval_model, eval_loader, draw_img=False, visualize=False, out_path=
     with torch.no_grad():
         for data, targets, path, __ in eval_loader:
             # giving the tensors to Cuda
-            data = data.to(device)
+            embeddings = extract_embeddings(data, reshape_size)
+            data = embeddings.to(device)
             targets_.append(targets.numpy().squeeze())
             targets = targets.view(-1).to(device) # Linearize the target tensor to match the shape
             output = eval_model(data)
@@ -159,22 +168,24 @@ def calculate_accuracy(class_correct, class_total):
     print('Mean Average Accuracy of Camera View : %2f %%' % (acc_sum/60))
     print('=' * 89)
 
-    return acc_sum/len(classes)#, error_rate
-    #write_to_graph(split+'/Accuracy', acc_sum/60, writer, epoch)
+    return acc_sum/len(classes)
+
 
 # training arguments
 parser = argparse.ArgumentParser(description="Skeleton Classification Training Script")
 parser.add_argument("-lr", "--learning_rate", default=5.0, type=float, help="Learning rate of model. Default 5.0")
-parser.add_argument("-b", "--batch_size",  default=10, type=int, help="Batch Size for training")
-parser.add_argument("-eb", "--eval_batch_size",  default=10, type=int, help="Batch Size for evaluation")
-parser.add_argument("-tr_d", "--train_data", default='./xsub_val_skel_small.csv', help='Path to training data')
-parser.add_argument("-ev_d", "--eval_data", default='./xsub_val_skel_small.csv', help='Path to eval data')
+parser.add_argument("-b", "--batch_size",  default=5, type=int, help="Batch Size for training")
+parser.add_argument("-eb", "--eval_batch_size",  default=5, type=int, help="Batch Size for evaluation")
+parser.add_argument("-tr_d", "--train_data", default='./xsub_val_rgb.csv', help='Path to training data')
+parser.add_argument("-ev_d", "--eval_data", default='./xsub_val_rgb.csv', help='Path to eval data')
 parser.add_argument("-ts_d", "--test_data",  help='Path to test data')
-parser.add_argument("-e", "--epochs", type=int, default=1, help='Number of epochs to train model for')
-parser.add_argument("-hid_dim", "--nhid", type=int, default=150, help='Number of hidden dimenstions, default is 100')
+parser.add_argument("-e", "--epochs", type=int, default=100, help='Number of epochs to train model for')
+parser.add_argument("-hid_dim", "--nhid", type=int, default=8, help='Number of hidden dimenstions, default is 100')
 parser.add_argument("-dropout", "--dropout", type=float, default=0.2, help='Dropout value, default is 0.2')
-parser.add_argument("-t", "--train", help="Put Model in training mode", action="store_true")
-parser.add_argument("-c", "--checkpoint", help="path to store model weights", default="/netscratch/m_ahmed/skeleton_activity/")
+parser.add_argument("-t", "--train", help="Put Model in training mode", default=True)
+parser.add_argument("-f", "--frame_count", help="Frame count per video", default=60)
+parser.add_argument("-c", "--checkpoint", help="path to store model weights", default="./logs/")
+parser.add_argument("-ac", "--ae_checkpoint", help="path to load autoencoder from", default="autoencoder_weights/subject_skeleton_autoencoder_int_rgb.pth")
 
 args = parser.parse_args()
 
@@ -202,12 +213,20 @@ if args.train:
 
     # Defining Model with parameters
     ntokens = len(classes) # the size of vocabulary #change number of tokens from 15400 to 154
-    emsize = 150 # embedding dimension
+    emsize = 8 # embedding dimension
     nhid = args.nhid # the dimension of the feedforward network model in nn.TransformerEncoder
     nlayers = 2 # the number of nn.TransformerEncoderLayer in nn.TransformerEncoder
     nhead = 2 # the number of heads in the multi head attention models
     dropout = args.dropout # the dropout value
-    model = TransformerModel(ntokens, emsize, nhead, nhid, nlayers, dropout).to(device)
+    # create transformer model
+    model = TransformerModel(ntokens, emsize, nhead, nhid, nlayers, args.batch_size, args.frame_count, dropout).to(device)
+
+    # load autoencoder
+    ae_model = simple_autoencoder()
+    ae_model.load_state_dict(torch.load(args.ae_checkpoint))
+    ae_model.eval().to(device)
+    # ae_model.load_state_dict(ae_checkpoint['model_state_dict'])
+    #optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
 
     criterion = nn.CrossEntropyLoss()
     optimizer = torch.optim.SGD(model.parameters(), lr=args.learning_rate)
@@ -235,7 +254,7 @@ if args.train:
     for epoch in range(0,  max_epochs):
         epoch_start_time = time.time()
         epoch_output_path = output_path +"/epoch_"+str(epoch_start_time)
-        tr_loss, tr_acc = train(step_count_tb, draw_graph, graph_out)
+        tr_loss, tr_acc = train(step_count_tb,100, draw_graph, graph_out)
         draw_graph=False
         print('| end of epoch {:3d} | time: {:5.2f}s | Train loss {:5.4f} | '
             'Train ppl {:8.2f}'.format(epoch, (time.time() - epoch_start_time),
@@ -243,9 +262,9 @@ if args.train:
 
         if epoch == max_epochs-1:
             print('***** in this line part *****')
-            val_loss, val_acc = evaluate(model, eval_loader, draw_img=True, visualize=False, out_path=skeleton_output)
+            val_loss, val_acc = evaluate(model, eval_loader, 100, draw_img=False, visualize=False, out_path=skeleton_output)
         else:
-            val_loss, val_acc = evaluate(model, eval_loader)
+            val_loss, val_acc = evaluate(model, eval_loader, 100)
         
         output_log.append('train_loss: '+str(tr_loss)+'\t'+ 'training_acc: '+str(tr_acc) + '\t' + 'val_loss: ' +str(val_loss) + '\t' + 'val_acc: '+str(val_acc) + '\n')    
         wandb.log({"train_loss":tr_loss, "training_acc":tr_acc, "val_loss":val_loss, "val_acc":val_acc, "learing_rate":optimizer.param_groups[0]['lr']})
@@ -280,6 +299,7 @@ else:
     test_loader = DataLoader(test_dataset, batch_size=args.batch_size, shuffle=False, **kwargs)
     # loading the model again to evaluate for the test set.
     checkpoint = torch.load(args.checkpoint)
+    model = TransformerModel(ntokens, emsize, nhead, nhid, nlayers, dropout).to(device)
     model.load_state_dict(checkpoint['model_state_dict'])
     optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
     epoch = checkpoint['epoch']

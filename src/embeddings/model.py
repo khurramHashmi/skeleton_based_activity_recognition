@@ -131,16 +131,113 @@ class simple_autoencoder(nn.Module):
             nn.Linear(100, 100),
             nn.ReLU(True))
 
-        # self.classifier = nn.Sequential(
-        #     nn.Linear(100, 60),
-        #     nn.Dropout(0.2),
-        #     nn.Softmax(dim=-1)
-        # )
 
     def forward(self, x):
         x = self.encoder(x)
         x = self.decoder(x)
-        # x = self.classifier(x)
+        
+        return x
+
+
+'''
+AutoEncoder With Classification Network with Video  For 128 Embedding Size for Previous Training3
+CODE starts here
+'''
+class SimpleAutoEncoderVideo_128(nn.Module):
+    def __init__(self):
+        super(SimpleAutoEncoderVideo_128, self).__init__()
+        self.encoder = nn.Sequential(
+            nn.Linear(7500, 1024),
+            nn.ReLU(True),
+            nn.Linear(1024, 512),
+            nn.ReLU(True),
+            nn.Linear(512, 256),
+            nn.ReLU(True),
+            nn.Linear(256, 128))
+        self.decoder = nn.Sequential(
+            nn.Linear(128, 256),
+            nn.ReLU(True),
+            nn.Linear(256, 512),
+            nn.ReLU(True),
+            nn.Linear(512, 1024),
+            nn.ReLU(True),
+            nn.Linear(1024, 7500),
+            nn.ReLU(True))
+
+
+    def forward(self, x):
+        x = self.encoder(x)
+        x = self.decoder(x)
+        return x
+
+
+class classification_network_128(nn.Module):
+
+    def __init__(self, num_feature, num_class):
+        super(classification_network_128, self).__init__()
+
+        self.layer_1 = nn.Linear(num_feature, 512)
+        self.layer_2 = nn.Linear(512, 256)
+        self.layer_3 = nn.Linear(256, 128)
+        self.layer_out = nn.Linear(128, num_class)
+
+        self.relu = nn.ReLU()
+        self.dropout = nn.Dropout(p=0.2)
+        self.batchnorm1 = nn.BatchNorm1d(512)
+        self.batchnorm2 = nn.BatchNorm1d(256)
+        self.batchnorm3 = nn.BatchNorm1d(128)
+
+
+    def forward(self, x):
+
+        x = self.layer_1(x)
+        x = self.batchnorm1(x)
+        x = self.relu(x)
+
+        x = self.layer_2(x)
+        x = self.batchnorm2(x)
+        x = self.relu(x)
+        x = self.dropout(x)
+
+        x = self.layer_3(x)
+        x = self.batchnorm3(x)
+        x = self.relu(x)
+        x = self.dropout(x)
+
+        x = self.layer_out(x)
+
+        return x
+'''
+AutoEncoder With Classification Network with Video For 128 Embedding Size for Previous Training
+ENDS HERE
+'''
+
+
+class SimpleAutoEncoderVideo(nn.Module):
+    def __init__(self):
+        super(SimpleAutoEncoderVideo, self).__init__()
+        self.encoder = nn.Sequential(
+            nn.Linear(7500, 4096),
+            nn.ReLU(True),
+            nn.Linear(4096, 2048),
+            nn.ReLU(True),
+            nn.Linear(2048, 1024),
+            nn.ReLU(True),
+            nn.Linear(1024, 512))
+        self.decoder = nn.Sequential(
+            nn.Linear(512, 1024),
+            nn.ReLU(True),
+            nn.Linear(1024, 2048),
+            nn.ReLU(True),
+            nn.Linear(2048, 4096),
+            nn.ReLU(True),
+            nn.Linear(4096, 7500),
+            nn.ReLU(True))
+
+
+    def forward(self, x):
+        x = self.encoder(x)
+        x = self.decoder(x)
         return x
 
 
@@ -152,15 +249,153 @@ class simple_autoencoder(nn.Module):
 
 class classification_network(nn.Module):
 
-    def __init__(self):
+    def __init__(self, num_feature, num_class):
         super(classification_network, self).__init__()
-        self.classifier = nn.Sequential(
-            nn.Linear(8, 1),
-            nn.Dropout(0.2),
-            nn.Softmax(dim=1)
-        )
+
+        self.layer_1 = nn.Linear(num_feature, 1024)
+        self.layer_2 = nn.Linear(1024, 512)
+        self.layer_3 = nn.Linear(512, 256)
+        self.layer_4 = nn.Linear(256, 128)
+        self.layer_5 = nn.Linear(128, 64)
+        self.layer_out = nn.Linear(64, num_class)
+
+        self.relu = nn.ReLU()
+        self.dropout = nn.Dropout(p=0.2)
+        self.batchnorm1 = nn.BatchNorm1d(1024)
+        self.batchnorm2 = nn.BatchNorm1d(512)
+        self.batchnorm3 = nn.BatchNorm1d(256)
+        self.batchnorm4 = nn.BatchNorm1d(128)
+        self.batchnorm5 = nn.BatchNorm1d(64)
+
 
     def forward(self, x):
 
-        x = self.classifier(x)
+        x = self.layer_1(x)
+        x = self.batchnorm1(x)
+        x = self.relu(x)
+
+        x = self.layer_2(x)
+        x = self.batchnorm2(x)
+        x = self.relu(x)
+        x = self.dropout(x)
+
+        x = self.layer_3(x)
+        x = self.batchnorm3(x)
+        x = self.relu(x)
+        x = self.dropout(x)
+
+        x = self.layer_4(x)
+        x = self.batchnorm4(x)
+        x = self.relu(x)
+        x = self.dropout(x)
+
+        x = self.layer_5(x)
+        x = self.batchnorm5(x)
+        x = self.relu(x)
+        x = self.dropout(x)
+
+        x = self.layer_out(x)
+
+        return x
+
+
+'''
+Class for Autoencoder with Classification
+'''
+class AutoEncoderWithClassifier(nn.Module):
+    def __init__(self):
+        super(AutoEncoderWithClassifier, self).__init__()
+        self.encoder = nn.Sequential(
+            nn.Linear(7500, 4096),
+            nn.ReLU(True),
+            nn.Linear(4096, 2048),
+            nn.ReLU(True),
+            nn.Linear(2048, 1024),
+            nn.ReLU(True),
+            nn.Linear(1024, 512),
+            nn.ReLU(True),
+            nn.Linear(512, 256),
+            nn.ReLU(True))
+        self.decoder = nn.Sequential(
+            nn.Linear(256, 512),
+            nn.ReLU(True),
+            nn.Linear(512, 1024),
+            nn.ReLU(True),
+            nn.Linear(1024, 2048),
+            nn.ReLU(True),
+            nn.Linear(2048, 4096),
+            nn.ReLU(True),
+            nn.Linear(4096, 7500),
+            nn.ReLU(True))
+
+        self.classifier = classification_network(256, 60)
+
+    def forward(self, x):
+
+        encoded_output = self.encoder(x)
+        decoded_output = self.decoder(encoded_output)
+        class_output = self.classifier(encoded_output)
+
+        return decoded_output, class_output
+
+
+
+'''
+Class for Classification network with conv1d
+
+'''
+
+class ClassificationConv1D(nn.Module):
+
+    def __init__(self, num_feature, num_class):
+        super(ClassificationConv1D, self).__init__()
+
+        self.layer_1 = nn.Linear(num_feature, 1024)
+
+        self.layer_2 = nn.Conv1d(1024, 512, kernel_size=3)
+        self.layer_3 = nn.Conv1d(512, 256, kernel_size=3)
+        self.layer_4 = nn.Conv1d(256, 128, kernel_size=3)
+        self.layer_5 = nn.Conv1d(128, 64, kernel_size=3)
+
+        self.layer_out = nn.Linear(64, num_class)
+
+        self.relu = nn.ReLU()
+        self.dropout = nn.Dropout(p=0.2)
+        self.batchnorm1 = nn.BatchNorm1d(1024)
+        self.batchnorm2 = nn.BatchNorm1d(512)
+        self.batchnorm3 = nn.BatchNorm1d(256)
+        self.batchnorm4 = nn.BatchNorm1d(128)
+        self.batchnorm5 = nn.BatchNorm1d(64)
+
+
+    def forward(self, x):
+
+        x = self.layer_1(x)
+        x = self.batchnorm1(x)
+        x = self.relu(x)
+
+        x = x.unsqueeze(-1)
+        x = x.expand(10, 1024, 7500)
+        x = self.layer_2(x)
+        x = self.batchnorm2(x)
+        x = self.relu(x)
+        x = self.dropout(x)
+
+        x = self.layer_3(x)
+        x = self.batchnorm3(x)
+        x = self.relu(x)
+        x = self.dropout(x)
+
+        x = self.layer_4(x)
+        x = self.batchnorm4(x)
+        x = self.relu(x)
+        x = self.dropout(x)
+
+        x = self.layer_5(x)
+        x = self.batchnorm5(x)
+        x = self.relu(x)
+        x = self.dropout(x)
+
+        x = self.layer_out(x)
+
         return x

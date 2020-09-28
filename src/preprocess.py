@@ -151,9 +151,9 @@ def normalize(path='', out_path='./', pickle_output='./', part='train'):
 
 parser = argparse.ArgumentParser(description="Normalize dataset")
 parser.add_argument("-p", "--part", default='train', help='Run on training data or val data')
-parser.add_argument("-d", "--data_path",  default='./xsub_train_rgb.csv', help="Path to dataset to run script on")
-parser.add_argument("-o", "--out_path",  default='./data', help="Path to store files")
-parser.add_argument("-po", "--pickle_output",  default='./data', help="Path to store mean and std")
+parser.add_argument("-d", "--data_path",  default='./xsub_train_int.csv', help="Path to dataset to run script on")
+parser.add_argument("-o", "--out_path",  default='./data/data_rgb_new/', help="Path to store files")
+parser.add_argument("-po", "--pickle_output",  default='./data/data_rgb_new/', help="Path to store mean and std")
 
 args = parser.parse_args()
 out = os.path.basename(args.data_path).split('_')[0] + '_' + args.part+'_norm'

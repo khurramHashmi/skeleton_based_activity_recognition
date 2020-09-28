@@ -216,7 +216,7 @@ def draw_confusion_matrix(y_true, y_pred, filename, labels, ymap=None, figsize=(
                  Caution: original y_true, y_pred and labels must align.
       figsize:   the size of the figure plotted.
     """
-    cm = confusion_matrix(y_true, y_pred, labels=labels)
+    cm = confusion_matrix(y_true, y_pred, labels=np.unique(y_true))
     cm_sum = np.sum(cm, axis=1, keepdims=True)
     cm_perc = cm / cm_sum.astype(float) * 100
     annot = np.empty_like(cm).astype(str)
