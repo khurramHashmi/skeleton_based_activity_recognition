@@ -54,26 +54,27 @@ def normalize(path='', out_path='./', pickle_output='./', part='train'):
         # if file_count > 11:
         #     break
         
-        skeleton_data = pd.read_csv(data.iloc[j, 0], delimiter="\t", header=None)
-        skeleton_sequence = skeleton_data[1].tolist()[0]
-        skeleton_sequence = skeleton_sequence.replace("'", "").split(",")
+        skeleton_data = pickle.load(open(data.iloc[j,0] , 'rb')) #pd.read_csv(data.iloc[j, 0], delimiter="\t", header=None)
+        skeleton_sequence = skeleton_data['values']#np.array(skeleton_data[1].tolist(), dtype=np.float)#[0]
+        #skeleton_sequence=map(list, skeleton_sequence)
+        #skeleton_sequence = skeleton_sequence.replace("'", "").split(",")
         train_list = []
-        data_source = []
-        data_skel=[] # for each skeleton pose
-        count = 1
-        for d in skeleton_sequence:
+#        data_source = []
+        #data_skel=[] # for each skeleton pose
+        #count = 1
+        # for d in skeleton_sequence:
 
-            d = re.sub('\D', '', d)
-            data_skel.append(int(d))
+        #     d = re.sub('\D', '', d)
+        #     data_skel.append(float(d)) # use int here for int
 
-            if count == 100:
-                data_source.append(data_skel)
-                data_skel = []
-                count = 1
-            else:
-                count+=1
+        #     if count == 100:
+        #         data_source.append(data_skel)
+        #         data_skel = []
+        #         count = 1
+        #     else:
+        #         count+=1
         # try:
-        skeleton_sequence = data_source # 100 * 100
+#        skeleton_sequence = data_source # 100 * 100
         # print('original: {} {}'.format(len(skeleton_sequence), data.iloc[j, 1]))
         
         #final_skeletons = []
@@ -109,12 +110,12 @@ def normalize(path='', out_path='./', pickle_output='./', part='train'):
         mean_list.append(np.mean(reduced_sequence))
         std_list.append(np.std(reduced_sequence))
         #final_skeletons.append(reduced_sequence)
-        labels_ = list(skeleton_data[0])
-        labels_ = [int(l) for l in labels_[0][1:-1].split(',')]
-        labels_ = [labels_[0]] *  median_fr
+        labels_ = skeleton_data['labels'] #list(skeleton_data[0])
+        #labels_ = [int(l) for l in labels_[0][1:-1].split(',')]
+        #labels_ = [labels_[0]] *  median_fr
         
-        train_list.append(labels_)
-        train_list.append(reduced_sequence)
+        # train_list.append(labels_)
+        # train_list.append(reduced_sequence)
         # print('Length {}'.format(len(labels_)))
 
         # if len(labels_) < median_fr:
@@ -126,28 +127,33 @@ def normalize(path='', out_path='./', pickle_output='./', part='train'):
         
         # print('Length {}'.format(len(labels_)))
         
-        assert len(reduced_sequence) == len(labels_), print('labels and data len not same {} {}'.format(len(reduced_sequence), len(labels_)))
+        # assert len(reduced_sequence) == len(labels_), print('labels and data len not same {} {}'.format(len(reduced_sequence), len(labels_)))
 
         # normalized_data = pd.DataFrame(data={'0': labels_, '1': reduced_sequence})
         # print(normalized_data)
         # normalized_data.to_csv(os.path.join(os.path.basename(out_path, data.iloc[j, 0])), index=False)
         # print(normalized_data.head)
         # frame_count.append(data.iloc[j, 1])
-        write_path = os.path.join(out_path, os.path.basename(data.iloc[j,0]))
+        write_path = os.path.join(out_path, '.'.join(os.path.basename(data.iloc[j,0]).split('.')[:2])+'.pickle') #os.path.join(out_path, os.path.basename(data.iloc[j,0].split('.')[0]))
         file_path.append(write_path)
-        with open(write_path, 'w') as result_file:
-                wr = csv.writer(result_file, quoting=csv.QUOTE_NONE, delimiter="\t")
-                wr.writerow((train_list[0], train_list[1]))
+        
+        with open(write_path, 'wb') as handle:
+            pickle.dump({'labels': labels_, 'values': reduced_sequence}, handle)
+        # dataframe = pd.DataFrame({'0':labels_, '1':pd.Series(reduced_sequence, dtype=float)})
+        # dataframe.to_csv(write_path, index=False, sep='\t')
+        # # with open(write_path, 'w') as result_file:
+        #         wr = csv.writer(result_file, quoting=csv.QUOTE_NONE, delimiter="\t")
+        #         wr.writerow((train_list[0], train_list[1]))
     # except:
     #     print('error in file: ', data.iloc[j, 0])
     #     count_prob +=1
         file_count += 1
     # save std dev and mean as pickle file
-    with open(os.path.join(pickle_output, os.path.basename(path).split('_')[0] + '_' + part+'_mean_std.pickle'), 'wb') as handle:
+    with open(os.path.join(pickle_output, os.path.basename(path).split('_')[0] + '_' + part+'_mean_std_f.pickle'), 'wb') as handle:
         pickle.dump({'mean': np.mean(mean_list), 'std': np.mean(std_list)}, handle)
 
     path_df = pd.DataFrame({'path':file_path})
-    path_df.to_csv('./' + os.path.basename(path).split('_')[0] + '_'+part+'_norm_rgb.csv', index=False)
+    path_df.to_csv('./' + os.path.basename(path).split('_')[0] + '_'+part+'_norm_float.csv', index=False)
 
 parser = argparse.ArgumentParser(description="Normalize dataset")
 parser.add_argument("-p", "--part", default='train', help='Run on training data or val data')
@@ -156,7 +162,7 @@ parser.add_argument("-o", "--out_path",  default='./data', help="Path to store f
 parser.add_argument("-po", "--pickle_output",  default='./data', help="Path to store mean and std")
 
 args = parser.parse_args()
-out = os.path.basename(args.data_path).split('_')[0] + '_' + args.part+'_norm'
+out = os.path.basename(args.data_path).split('_')[0] + '_' + args.part+'_norm_float'
 out_path = os.path.join(args.out_path, out)
 print('Saving output to ',out_path)
 create_dir(out_path)

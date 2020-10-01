@@ -3,6 +3,7 @@ import os
 import sys
 import csv
 import tqdm
+import pickle
 import argparse
 import itertools
 import numpy as np
@@ -98,7 +99,7 @@ def gen_data(args):
         skeleton_data = np.load(args.data_path + filename, allow_pickle=True).item()
         skeleton_sequence = []
 
-        # if file_count >= 2:  # Limiting the sequences for now
+        # if file_count >= 5:  # Limiting the sequences for now
         #     break
         skeleton_list = []
     
@@ -114,16 +115,16 @@ def gen_data(args):
                     joint_count = 1
 
                     for joint_count in range(1, 26):
-                        rgb_body_number = "rgb_body" + str(person_count) # now writing skeletons
+                        rgb_body_number = "skel_body" + str(person_count) # now writing skeletons # rgb_body for int
                         connecting_joints = connecting_joint[str(joint_count)]
 
                         # Calculating distance between two fromes on each joints then take mean
-                        x1 = int(skeleton_data[rgb_body_number][frame_count][joint_count - 1][0])
-                        y1 = int(skeleton_data[rgb_body_number][frame_count][joint_count - 1][1])
-                        # z1 = (skeleton_data[rgb_body_number][frame_count][joint_count - 1][2])
+                        x1 = (skeleton_data[rgb_body_number][frame_count][joint_count - 1][0])
+                        y1 = (skeleton_data[rgb_body_number][frame_count][joint_count - 1][1])
+                        z1 = (skeleton_data[rgb_body_number][frame_count][joint_count - 1][2])
                         a_vec.append(x1)
                         a_vec.append(y1)
- #                       a_vec.append(z1)
+                        a_vec.append(z1)
 
                         # Connecting joints code for later use
                         #             for next_joint in connecting_joints:
@@ -155,27 +156,31 @@ def gen_data(args):
 
             train_list.append(video_sequence)
             # count = count + 1
-
-            file_count += 1
             # print(str(len(train_list[0][1])))
             # print(train_list[0][1][0])
             # Writing into csv in order to be read as a dataframe later on.
-            write_path = os.path.join(args.out_path, os.path.basename(filename) + '.tsv')
+            write_path = os.path.join(args.out_path, os.path.basename(filename) + '.pickle')
             path_list.append(write_path)
+        
+            with open(write_path, 'wb') as handle:
+                pickle.dump({'labels': out_labels, 'values': skeleton_sequence}, handle)
 
-            with open(write_path, 'w') as result_file:
-                wr = csv.writer(result_file, quoting=csv.QUOTE_NONE, delimiter="\t")
-                for line in train_list:
-                    wr.writerow((line[0], line[1]))
+            # dataframe = pd.DataFrame({'0':out_labels, '1':pd.Series(skeleton_sequence, dtype=float)})
+            # dataframe.to_csv(write_path, index=False, sep='\t')
+            # # with open(write_path, 'w') as result_file:
+            #     wr = csv.writer(result_file, quoting=csv.QUOTE_NONE, delimiter="\t")
+            #     for line in train_list:
+            #         wr.writerow((line[0], line[1]))
             # print("CSV file created with the name of " + os.path.basename(filename) + '.tsv')
 
-        except:
+        except Exception as e:
             count_prob +=1
+            print(e)
             # print("no value in the dataset")
-    
+        file_count += 1
     print("PROBLEM IN FILES : ", str(count_prob))
     df = pd.DataFrame(data={'path':pd.Series(path_list), 'frame_count':current_length})
-    df.to_csv(os.path.join('./', args.benchmark+'_'+args.part+'_int.csv'), index=False)
+    df.to_csv(os.path.join('./', args.benchmark+'_'+args.part+'_float.csv'), index=False)
 
 parser = argparse.ArgumentParser(description="Dataset Generator for Skeleton Classification Model")
 parser.add_argument("-d", "--data_path",default='./data/raw_npy/', help="Path to folder containing data")
