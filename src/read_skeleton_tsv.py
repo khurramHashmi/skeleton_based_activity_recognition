@@ -159,32 +159,31 @@ def gen_data(args):
             # print(str(len(train_list[0][1])))
             # print(train_list[0][1][0])
             # Writing into csv in order to be read as a dataframe later on.
-            write_path = os.path.join(args.out_path, os.path.basename(filename) + '.pickle')
+            write_path = os.path.join(args.out_path, os.path.basename(filename) + '.csv')
             path_list.append(write_path)
-        
-            with open(write_path, 'wb') as handle:
-                pickle.dump({'labels': out_labels, 'values': skeleton_sequence}, handle)
-
-            # dataframe = pd.DataFrame({'0':out_labels, '1':pd.Series(skeleton_sequence, dtype=float)})
+            # d = {'0': out_labels, '1': skeleton_sequence}
+            # dataframe = pd.DataFrame(data=d)
             # dataframe.to_csv(write_path, index=False, sep='\t')
-            # # with open(write_path, 'w') as result_file:
-            #     wr = csv.writer(result_file, quoting=csv.QUOTE_NONE, delimiter="\t")
-            #     for line in train_list:
-            #         wr.writerow((line[0], line[1]))
+
+
+            with open(write_path, 'w') as result_file:
+                wr = csv.writer(result_file, quoting=csv.QUOTE_NONE, delimiter="\t")
+                for line in train_list:
+                    wr.writerow((line[0], line[1]))
             # print("CSV file created with the name of " + os.path.basename(filename) + '.tsv')
 
         except Exception as e:
             count_prob +=1
-            print(e)
+            # print(e)
             # print("no value in the dataset")
         file_count += 1
     print("PROBLEM IN FILES : ", str(count_prob))
-    df = pd.DataFrame(data={'path':pd.Series(path_list), 'frame_count':current_length})
-    df.to_csv(os.path.join('./', args.benchmark+'_'+args.part+'_float.csv'), index=False)
+    df = pd.DataFrame(data={'path':path_list, 'frame_count':current_length})
+    df.to_csv(os.path.join('./', args.benchmark+'_'+args.part+'_skel_float.csv'), index=False)
 
 parser = argparse.ArgumentParser(description="Dataset Generator for Skeleton Classification Model")
 parser.add_argument("-d", "--data_path",default='./data/raw_npy/', help="Path to folder containing data")
-parser.add_argument("-o", "--out_path",default='./data/data_skel/val/', help="Path to create tsv file")
+parser.add_argument("-o", "--out_path",default='./data/data_skel_float/val/', help="Path to create tsv file")
 parser.add_argument("-b", "--benchmark", default='xsub', help="Camera view or subject view data generation parameter. xview for camera view, xsub for subject view." )
 parser.add_argument("-p", "--part", default='val', help="Create data for train or validation")
 args = parser.parse_args()
