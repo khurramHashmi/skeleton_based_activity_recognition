@@ -15,7 +15,7 @@ class SkeletonAutoEnoder(nn.Module):
         super(SkeletonAutoEnoder, self).__init__()
 
         self.encoder = nn.Sequential(
-            nn.Linear(100, 100),
+            nn.Linear(150, 100),
             nn.ReLU(),
             nn.Linear(100, 78),
             nn.ReLU(),
@@ -30,7 +30,7 @@ class SkeletonAutoEnoder(nn.Module):
             nn.ReLU(),
             nn.Linear(78, 100),
             nn.ReLU(),
-            nn.Linear(100, 100),
+            nn.Linear(100, 150),
             nn.ReLU())
 
         '''Experimenting with 1D CNN
@@ -147,11 +147,13 @@ class classification_network_128(nn.Module):
         # Forward pass For Video_AutoEncoder
         # Reshaping Skeleten_ecoded embeddings Accordingly
         input_video_encoder = self.transform_input_for_video(skel_encoded)
+       # print(input_video_encoder.shape)
         video_encoded = self.video.encoder(input_video_encoder)
         video_decoded = self.video.decoder(video_encoded)
-
+        print(video_decoded.shape)
         # Reshaping Video Decoded such that skeleton can be reproduced
-        video_decoded = self.transform_input_for_skeleton(video_decoded)
+        video_decoded = video_decoded.view(-1,100) #self.transform_input_for_skeleton(video_decoded)
+        print(video_decoded.shape)
 
         x = self.layer_1(video_encoded)
         x = self.batchnorm1(x)
@@ -175,11 +177,11 @@ class classification_network_128(nn.Module):
 
     def transform_input_for_skeleton(self, x):
 
-        return x.view(-1,100) # Since the size of skeleton will always be 100
+        return x.view(-1,150) # Since the size of skeleton will always be 100
 
 
     def transform_input_for_video(self, x):
-
+        #print(x.shape)
         return x.view(100, -1) # Since the size of skeleton will always be 100
 
 
