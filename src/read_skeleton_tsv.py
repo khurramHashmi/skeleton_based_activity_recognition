@@ -30,9 +30,6 @@ def gen_data(args):
 
     max_skel_num = 100
     check_max = 0
-    # print(find_max_skeleton(input_dir))
-    # input_dir = "./data/cross_view/val/" # val
-    # print(find_max_skeleton(input_dir))
 
     frame_count = 0
     connecting_joint = {
@@ -68,7 +65,7 @@ def gen_data(args):
     path_list = []
     current_length = []
     total_files = os.listdir(args.data_path)
-    for i in tqdm.tqdm(range(len(total_files))): #os.listdir(args.data_path):
+    for i in tqdm.tqdm(range(len(total_files))):
         filename = total_files[i]
         train_list = []
         video_sequence = []
@@ -147,25 +144,11 @@ def gen_data(args):
                 out_labels.append(int(output_label))
 
             video_sequence.append(out_labels)
-            # temp_vec = [0] * 150
-
-            # for i in range(len(skeleton_sequence),max_skel_num):  # padding 0s vector to the maximum size available
-            #     skeleton_sequence.append(temp_vec)                 # making the video size for each activity same
-
             video_sequence.append(skeleton_sequence)
 
             train_list.append(video_sequence)
-            # count = count + 1
-            # print(str(len(train_list[0][1])))
-            # print(train_list[0][1][0])
-            # Writing into csv in order to be read as a dataframe later on.
             write_path = os.path.join(args.out_path, os.path.basename(filename) + '.csv')
             path_list.append(write_path)
-            # d = {'0': out_labels, '1': skeleton_sequence}
-            # dataframe = pd.DataFrame(data=d)
-            # dataframe.to_csv(write_path, index=False, sep='\t')
-
-
             with open(write_path, 'w') as result_file:
                 wr = csv.writer(result_file, quoting=csv.QUOTE_NONE, delimiter="\t")
                 for line in train_list:
@@ -179,7 +162,7 @@ def gen_data(args):
         file_count += 1
     print("PROBLEM IN FILES : ", str(count_prob))
     df = pd.DataFrame(data={'path':path_list, 'frame_count':current_length})
-    df.to_csv(os.path.join('./', args.benchmark+'_'+args.part+'_skel_float.csv'), index=False)
+    df.to_csv(os.path.join('./', args.benchmark+'_'+args.part+'_float.csv'), index=False)
 
 parser = argparse.ArgumentParser(description="Dataset Generator for Skeleton Classification Model")
 parser.add_argument("-d", "--data_path",default='./data/raw_npy/', help="Path to folder containing data")

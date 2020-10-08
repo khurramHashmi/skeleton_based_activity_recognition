@@ -14,100 +14,197 @@ class SkeletonAutoEnoder(nn.Module):
     def __init__(self):
         super(SkeletonAutoEnoder, self).__init__()
 
-        self.encoder = nn.Sequential(
-            nn.Linear(150, 100),
-            nn.ReLU(),
-            nn.Linear(100, 78),
-            nn.ReLU(),
-            nn.Linear(78, 64),
-            nn.ReLU(),
-            nn.Linear(64, 32))
+        # self.encoder = nn.Sequential(
+        #     nn.Linear(150, 100),
+        #     nn.ReLU(),
+        #     nn.Linear(100, 78),
+        #     nn.ReLU(),
+        #     nn.Linear(78, 64),
+        #     nn.ReLU(),
+        #     nn.Linear(64, 32))
 
-        self.decoder = nn.Sequential(
-            nn.Linear(32, 64),
-            nn.ReLU(),
-            nn.Linear(64, 78),
-            nn.ReLU(),
-            nn.Linear(78, 100),
-            nn.ReLU(),
-            nn.Linear(100, 150),
-            nn.ReLU())
+        # self.decoder = nn.Sequential(
+        #     nn.Linear(32, 64),
+        #     nn.ReLU(),
+        #     nn.Linear(64, 78),
+        #     nn.ReLU(),
+        #     nn.Linear(78, 100),
+        #     nn.ReLU(),
+        #     nn.Linear(100, 150),
+        #     nn.ReLU())
 
-        '''Experimenting with 1D CNN
-        self.encoder = nn.Sequential(
-            nn.Conv1d(100, 78, 3),
-            nn.Dropout(0.5),
-            nn.ReLU(),
-            nn.MaxPool1d(3),
-            nn.Conv1d(78,64,3),
-            nn.Dropout(0.5),
-            nn.ReLU(),
-            nn.MaxPool1d(3),
-            nn.Conv1d(64, 32, 3),
-            nn.Dropout(0.5),
-            nn.ReLU(),
-            nn.MaxPool1d(3))
+        # Experimenting with 1D CNN
+        # parameters for encoder
+        self.conv = nn.Conv1d(75,75,3)
+        self.maxpool = nn.MaxPool1d(2, return_indices=True)
+        # common parameters
+        self.relu = nn.ReLU()
+        self.dropout = nn.Dropout(0.5)
+        # parameters for decoder
+        self.b_conv = nn.ConvTranspose1d(75,75,1)
+        self.r_maxpool = nn.MaxUnpool1d(2)
+        self.r_conv = nn.ConvTranspose1d(75,75,3)
+        self.indices = []
 
-        self.decoder = nn.Sequential(
-            nn.ConvTranspose1d(32,64,3),
-            nn.Dropout(0.5),
-            nn.ReLU(),
-            nn.MaxUnpool1d(3),
-            nn.ConvTranspose1d(64, 78, 3),
-            nn.Dropout(0.5),
-            nn.ReLU(),
-            nn.MaxUnpool1d(3),
-            nn.ConvTranspose1d(78, 100, 3),
-            nn.Dropout(0.5),
-            nn.ReLU(),
-            nn.MaxUnpool1d(3))'''
+    def encoder_forward(self, x):
 
+      x = self.conv(x) # 148
+      x = self.dropout(x)  
+      x = self.relu(x)
+      x, indx = self.maxpool(x) # 74
+      self.indices.append(indx)          
+      x = self.conv(x) # 72
+      x = self.dropout(x)  
+      x = self.relu(x)
+      x, indx = self.maxpool(x) # 36        
+      self.indices.append(indx)      
+      x = self.conv(x) # 34
+      x = self.dropout(x)  
+      x = self.relu(x)
+      x, indx = self.maxpool(x) # 17
+      self.indices.append(indx)      
+      
+      return x
+
+    def decoder_forward(self, x):
+
+      x = self.b_conv(x) # 17
+      x = self.dropout(x)  
+      x = self.relu(x)
+      x = self.r_maxpool(x, self.indices[2]) # 34
+     
+      x = self.r_conv(x) # 36
+      x = self.dropout(x)  
+      x = self.relu(x)
+      x = self.r_maxpool(x, self.indices[1]) # 72        
+
+      x = self.r_conv(x) # 74
+      x = self.dropout(x)  
+      x = self.relu(x)
+      x = self.r_maxpool(x, self.indices[0]) # 148
+
+      x = self.r_conv(x) # 150
+      return x
+        # self.encoder = nn.Sequential(
+        #     nn.Conv1d(75, 75, 3), # 148
+        #     nn.Dropout(0.5),
+        #     nn.ReLU(),
+        #     nn.MaxPool1d(2), # 74
+        #     nn.Conv1d(74,74,3), # 72
+        #     nn.Dropout(0.5),
+        #     nn.ReLU(),
+        #     nn.MaxPool1d(2), # 36
+        #     nn.Conv1d(36, 36, 3), # 34
+        #     nn.Dropout(0.5),
+        #     nn.ReLU(),
+        #     nn.MaxPool1d(2)) # 17
+
+        # self.decoder = nn.Sequential(
+        #     nn.ConvTranspose1d(17,17,1), # 17
+        #     nn.Dropout(0.5), 
+        #     nn.ReLU(),
+        #     nn.MaxUnpool1d(2), # 34
+        #     nn.ConvTranspose1d(34, 34, 3), # 36
+        #     nn.Dropout(0.5),
+        #     nn.ReLU(),
+        #     nn.MaxUnpool1d(2), # 72
+        #     nn.ConvTranspose1d(72, 72, 3), # 74
+        #     nn.Dropout(0.5),
+        #     nn.ReLU(),
+        #     nn.MaxUnpool1d(2), # 148
+        #     nn.ConvTranspose1d(148, 148, 3)) # 150
 
 class VideoAutoEnoder(nn.Module):
 
     def __init__(self, batch_size):
         super(VideoAutoEnoder, self).__init__()
 
-        self.encoder = nn.Sequential(
-            nn.Linear(32 * 75, 1024),  #Input Dimension depends upon the last layer of Skeleton_Encoder
-            nn.ReLU(),
-            nn.Linear(1024, 512),
-            nn.ReLU(),
-            nn.Linear(512, 256),
-            nn.ReLU(),
-            nn.Linear(256, 128))
+        # self.encoder = nn.Sequential(
+        #     nn.Linear(17 * 75, 1024),  #Input Dimension depends upon the last layer of Skeleton_Encoder
+        #     nn.ReLU(),
+        #     nn.Linear(1024, 784),
+        #     nn.ReLU(),
+        #     nn.Linear(784, 512),
+        #     nn.ReLU(),
+        #     nn.Linear(512, 256))
 
-        self.decoder = nn.Sequential(
-            nn.Linear(128, 256),
-            nn.ReLU(),
-            nn.Linear(256, 512),
-            nn.ReLU(),
-            nn.Linear(512, 1024),
-            nn.ReLU(),
-            nn.Linear(1024, batch_size * 75),
-            nn.ReLU())
+        # self.decoder = nn.Sequential(
+        #     nn.Linear(256, 512),
+        #     nn.ReLU(),
+        #     nn.Linear(512, 784),
+        #     nn.ReLU(),
+        #     nn.Linear(784, 1024),
+        #     nn.ReLU(),
+        #     nn.Linear(1024, 150 * 75),
+        #     nn.ReLU())
 
-        '''Experimenting with 1D CNN
-        self.encoder = nn.Sequential(
-            nn.Conv1d(32 * 75, 1024, 3),
-            nn.MaxPool1d(3),
-            nn.Conv1d(1024 ,512 ,3),
-            nn.MaxPool1d(3),
-            nn.Conv1d(512 , 256, 3),
-            nn.MaxPool1d(3),
-            nn.Conv1d(256 , 128, 3),
-            nn.MaxPool1d(3))
+        self.conv = nn.Conv1d(1,1,7)
+        self.maxpool = nn.MaxPool1d(3, return_indices=True)
+        # common parameters
+        self.relu = nn.ReLU()
+        self.dropout = nn.Dropout(0.5)
+        # parameters for decoder
+        self.b_conv = nn.ConvTranspose1d(1,1,1)
+        self.r_maxpool = nn.MaxUnpool1d(3)
+        self.r_conv = nn.ConvTranspose1d(1,1,7)
+        self.indices = []
+        self.linear = nn.Linear(1275, 75*150)
 
-        self.decoder = nn.Sequential(
-            nn.ConvTranspose1d(128, 256 ,3),
-            nn.MaxUnpool1d(3),
-            nn.ConvTranspose1d(256, 512, 3),
-            nn.MaxUnpool1d(3),
-            nn.ConvTranspose1d(512, 1024, 3),
-            nn.MaxUnpool1d(3),
-            nn.ConvTranspose1d(1024, batch_size * 75, 3),
-            nn.MaxUnpool1d(3))
-            '''
+    def encoder_forward(self, x):
+
+      x = self.conv(x) # 1275 -> 1269
+      x = self.dropout(x)  
+      x = self.relu(x)
+      x, indx = self.maxpool(x) # 423
+      self.indices.append(indx)          
+      x = self.conv(x) # 417
+      x = self.dropout(x)  
+      x = self.relu(x)
+      x, indx = self.maxpool(x) # 139        
+      self.indices.append(indx)      
+      
+      return x
+
+    def decoder_forward(self, x):
+
+      x = self.b_conv(x) # 139
+      x = self.dropout(x)  
+      x = self.relu(x)
+      x = self.r_maxpool(x, self.indices[1]) # 417
+     
+      x = self.r_conv(x) # 423
+      x = self.dropout(x)  
+      x = self.relu(x)
+      x = self.r_maxpool(x, self.indices[0]) # 1269        
+
+      x = self.r_conv(x) # 1275
+      x = self.dropout(x)  
+      x = self.relu(x)
+      x = x.view(100, -1) # 100, 1275
+      x = self.linear(x)
+      return x
+
+      '''Experimenting with 1D CNN
+      self.encoder = nn.Sequential(
+          nn.Conv1d(32 * 75, 1024, 3),
+          nn.MaxPool1d(3),
+          nn.Conv1d(1024 ,512 ,3),
+          nn.MaxPool1d(3),
+          nn.Conv1d(512 , 256, 3),
+          nn.MaxPool1d(3),
+          nn.Conv1d(256 , 128, 3),
+          nn.MaxPool1d(3))
+
+      self.decoder = nn.Sequential(
+          nn.ConvTranspose1d(128, 256 ,3),
+          nn.MaxUnpool1d(3),
+          nn.ConvTranspose1d(256, 512, 3),
+          nn.MaxUnpool1d(3),
+          nn.ConvTranspose1d(512, 1024, 3),
+          nn.MaxUnpool1d(3),
+          nn.ConvTranspose1d(1024, batch_size * 75, 3),
+          nn.MaxUnpool1d(3))
+      '''
 
 
 class classification_network_128(nn.Module):
@@ -202,50 +299,29 @@ class UnsuperVisedAE(nn.Module):
     def forward(self, x):
         #taking input as a video but then pass it as a skeleton
 
-        x = self.transform_input_for_skeleton(x)
-
         # Forward pass For Skel_AutoEncoder
-        skel_encoded = self.skel.encoder(x)
-        skel_decoded = self.skel.decoder(skel_encoded)
-
+        skel_encoded = self.skel.encoder_forward(x) # 100, 75, 17
+        skel_decoded = self.skel.decoder_forward(skel_encoded) # 100, 75, 150
         # Forward pass For Video_AutoEncoder
         # Reshaping Skeleten_ecoded embeddings Accordingly
-        input_video_encoder = self.transform_input_for_video(skel_encoded)
-        video_encoded = self.video.encoder(input_video_encoder)
-        video_decoded = self.video.decoder(video_encoded)
-
-        # Reshaping Video Decoded such that skeleton can be reproduced
+#        input_video_encoder = self.transform_input_for_video(skel_encoded)
+        video_encoded = self.video.encoder_forward(self.add_dim(skel_encoded)) # 100, 1, 137
+        video_decoded = self.video.decoder_forward(video_encoded) # 100, 75*150
+        # Reshaping Video Decoded for loss calculation
         video_decoded = self.transform_input_for_skeleton(video_decoded)
-
+        skel_decoded = self.transform_input_for_skeleton(skel_decoded)
         return skel_decoded, video_decoded
+
+    def add_dim(self, x):
+      return x.reshape((100, 1, 75*17))
 
     def transform_input_for_skeleton(self, x):
 
-        return x.view(-1,100) # Since the size of skeleton will always be 100
-
+        return x.reshape((7500,150)) # Since the size of skeleton will always be 100
 
     def transform_input_for_video(self, x):
 
         return x.view(100, -1) # Since the size of skeleton will always be 100
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 '''
 NOW NEW EXPERIMENT WITH RNN IN AUTO ENCODER ALONG WITH THE SAME CLASSIFIER

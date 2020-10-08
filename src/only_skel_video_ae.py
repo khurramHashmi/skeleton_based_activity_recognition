@@ -1,21 +1,22 @@
 import time
-import datetime
 import wandb
+import logging
+import datetime
 import argparse
 from utils import *
+import torch.nn as nn
 from model_transformer import *
-from data_source_reader_video import SkeletonsDataset
 from torch.utils.data import DataLoader
 from embeddings.main_model import UnsuperVisedAE
-import torch.nn as nn
+from data_source_reader_video import SkeletonsDataset
 
 # env vairables
-# os.environ["WANDB_MODE"] = "dryrun"
-os.environ["WANDB_API_KEY"] = "cbf5ed4387d24dbdda68d6de22de808c592f792e"
-os.environ["WANDB_ENTITY"] = "khurram"
+os.environ["WANDB_MODE"] = "dryrun"
+# os.environ["WANDB_API_KEY"] = "cbf5ed4387d24dbdda68d6de22de808c592f792e"
+# os.environ["WANDB_ENTITY"] = "khurram"
 
 
-def train(step_count_tb, batch_size):
+def train(step_count_tb, batch_size, logging):
     '''
         Function for training 1 epoch of network
         args:
@@ -37,15 +38,19 @@ def train(step_count_tb, batch_size):
     sum_skel_loss = []
     sum_video_loss = []
 
-    for data, targets, __ in train_loader:
+    for data, targets, __ in train_loader: # 100, 75, 150
 
         data = data.to(device)
-        skel_data = data.view(75 * batch_size, 100)
+        skel_data = data.view(75 * batch_size, 150)
+        # skel_data = data
+        # logging.info('batch shape: {}'.format(skel_data.shape))
         optimizer.zero_grad()
 
         skel_decoded, video_decoded = model(data)
 
         # calculate all the losses and perform backprop
+        print(skel_decoded.shape)
+        print(skel_data.shape)
         skel_loss = skel_criterion(skel_decoded, skel_data)
         video_loss = video_criterion(video_decoded, skel_data)
 
@@ -107,10 +112,10 @@ def evaluate(eval_model, eval_loader, batch_size, draw_img=False, visualize=Fals
 
 
     with torch.no_grad():
-        for data, targets, path in eval_loader:
+        for data, __, __ in eval_loader:
 
-            data = data.to(device)
-            skel_data = data.view(75 * batch_size, 100)
+            data = data.to(device) # 100, 75, 150
+            skel_data = data.view(75 * batch_size, 150) # 7500, 150
 
             optimizer.zero_grad()
 
@@ -119,13 +124,10 @@ def evaluate(eval_model, eval_loader, batch_size, draw_img=False, visualize=Fals
             # calculate all the losses and perform backprop
             skel_loss = skel_criterion(skel_decoded, skel_data)
             video_loss = video_criterion(video_decoded, skel_data)
-
             # print(" Skeleton LOSS : {} ".format(skel_loss))
             # print(" Video LOSS : {} ".format(video_loss))
             # print(" Class LOSS : {} ".format(class_loss))
-
             loss = skel_loss + video_loss
-
             total_loss += loss.item()
 
         total_samples = (len(eval_loader))
@@ -141,15 +143,15 @@ parser = argparse.ArgumentParser(description="Skeleton Classification Training S
 parser.add_argument("-lr", "--learning_rate", default=0.001, type=float, help="Learning rate of model. Default 5.0")
 parser.add_argument("-b", "--batch_size", default=100, type=int, help="Batch Size for training")
 parser.add_argument("-eb", "--eval_batch_size", default=100, type=int, help="Batch Size for evaluation")
-parser.add_argument("-tr_d", "--train_data", default='./xsub_train_norm_rgb.csv', help='Path to training data')
-parser.add_argument("-ev_d", "--eval_data", default='./xsub_val_norm_rgb.csv', help='Path to eval data')
+parser.add_argument("-tr_d", "--train_data", default='./xsub_train_norm_float.csv', help='Path to training data')
+parser.add_argument("-ev_d", "--eval_data", default='./xsub_val_norm_float.csv', help='Path to eval data')
 parser.add_argument("-ts_d", "--test_data", help='Path to test data')
 parser.add_argument("-e", "--epochs", type=int, default=100, help='Number of epochs to train model for')
 parser.add_argument("-hid_dim", "--nhid", type=int, default=8, help='Number of hidden dimenstions, default is 100')
 parser.add_argument("-dropout", "--dropout", type=float, default=0.2, help='Dropout value, default is 0.2')
 parser.add_argument("-t", "--train", help="Put Model in training mode", default=True)
 parser.add_argument("-f", "--frame_count", help="Frame count per video", default=60)
-parser.add_argument("-c", "--checkpoint", help="path to store model weights", default="./logs/only_ae_skel_video_inplace_false_")
+parser.add_argument("-c", "--checkpoint", help="path to store model weights", default="/netscratch/m_ahmed/skeleton_activity/autoencoder_network_video/")
 parser.add_argument("-bs", "--batch_shuffle", help="path to store model weights", default=True)
 parser.add_argument("-rc", "--resume_checkpoint", help="path to store model weights", default="./logs/output_2020-09-22 12:37:39.576905/epoch_2020-09-23 06:34:34.803320")
 parser.add_argument("-r", "--resume_bool", default=False, help='Whether to resume training or start from scratch')
@@ -160,15 +162,20 @@ args = parser.parse_args()
 
 # initalize wandb
 wandb.init(project="Skel_class", reinit=True)
+LOG_FILENAME = 'experiment_only_skel_video_ae.log'
+# Set up a specific logger with our desired output level
+my_logger = logging.getLogger('MyLogger')
+my_logger.setLevel(logging.INFO)
+logging.basicConfig(filename=LOG_FILENAME,level=logging.DEBUG)
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 kwargs = {'num_workers': 1, 'pin_memory': True} if device == 'cuda' else {}
 
 if args.train:
 
-    train_dataset = SkeletonsDataset(args.train_data, args.batch_size, './data/data_rgb_new/xsub_train_mean_std.pickle', './data/data_rgb_new/xsub_val_mean_std.pickle')
+    train_dataset = SkeletonsDataset(args.train_data, args.batch_size, './data/xsub_train_mean_std_f.pickle', './data/xsub_val_mean_std_f.pickle')
     train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=args.batch_shuffle, **kwargs)
-    eval_dataset = SkeletonsDataset(args.eval_data, args.eval_batch_size, './data/data_rgb_new/xsub_train_mean_std.pickle', './data/data_rgb_new/xsub_val_mean_std.pickle')
+    eval_dataset = SkeletonsDataset(args.eval_data, args.eval_batch_size, './data/xsub_train_mean_std_f.pickle', './data/xsub_val_mean_std_f.pickle')
     eval_loader = DataLoader(eval_dataset, batch_size=args.eval_batch_size, shuffle=args.batch_shuffle, **kwargs)
 
     '''
@@ -194,11 +201,10 @@ if args.train:
     # Training procedure starts
     current_date_time = str(datetime.datetime.now()).split(",")[0]
 
-    output_path = args.checkpoint + "output_" + str(current_date_time)
+    output_path = os.path.join(args.checkpoint, "output_" + str(current_date_time))
     create_dir(output_path)  # creating the directory where epochs will be saved
     skeleton_output = os.path.join(output_path, 'skeleton_diagrams')
 
-    output_log = []
     '''
     Resuming from the specific check point
     '''
@@ -214,10 +220,9 @@ if args.train:
         epoch_start_time = time.time()
         current_date_time = str(datetime.datetime.now()).split(",")[0]
 
-        tr_loss = train(step_count_tb, args.batch_size)
-
+        tr_loss = train(step_count_tb, args.batch_size, logging)
         print('| end of epoch {:3d} | time: {:5.2f}s | Train loss {:5.4f} | '.format(epoch, (time.time() - epoch_start_time), tr_loss))
-
+        logging.info('| end of epoch {:3d} | time: {:5.2f}s | Train loss {:5.4f} | '.format(epoch, (time.time() - epoch_start_time), tr_loss))
         if epoch == max_epochs - 1:
             print('***** in this line part *****')
             val_loss = evaluate(model, eval_loader, args.batch_size, draw_img=False, visualize=False,
@@ -230,9 +235,7 @@ if args.train:
         print('-' * 89)
         print('| end of epoch {:3d} | time: {:5.2f}s | valid loss {:5.4f} | '.format(epoch, (time.time() - epoch_start_time),
                                          val_loss))
-
-        output_log.append('| end of epoch {:3d} | time: {:5.2f}s | valid loss {:5.4f} | '.format(epoch, (time.time() - epoch_start_time) ,val_loss))
-        output_log.append('\n')
+        logging.info('| end of epoch {:3d} | time: {:5.2f}s | valid loss {:5.4f} | '.format(epoch, (time.time() - epoch_start_time),val_loss))
         print('-' * 89)
         # write_to_graph('Val/loss', val_loss, writer, epoch)
         if val_loss < best_val_loss:
@@ -251,8 +254,3 @@ if args.train:
             for param_group in optimizer.param_groups:
                 param_group["lr"] = param_group["lr"] * (0.993 ** epoch)
             lr_change_count +=1
-
-    with open(output_path + "_" + "log.txt", "w") as outfile:
-        outfile.write("\n".join(output_log))
-
-

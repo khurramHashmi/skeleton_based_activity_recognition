@@ -154,7 +154,7 @@ def normalize(path='', out_path='./', pickle_output='./', part='train'):
         pickle.dump({'mean': np.mean(mean_list), 'std': np.mean(std_list)}, handle)
 
     path_df = pd.DataFrame({'path':file_path})
-    path_df.to_csv('./' + os.path.basename(path).split('_')[0] + '_'+part+'_norm_skel_float.csv', index=False)
+    path_df.to_csv('./' + os.path.basename(path).split('_')[0] + '_'+part+'_norm_float.csv', index=False)
 
 parser = argparse.ArgumentParser(description="Normalize dataset")
 parser.add_argument("-p", "--part", default='val', help='Run on training data or val data')
@@ -163,7 +163,7 @@ parser.add_argument("-o", "--out_path",  default='./data/data_skel_float/', help
 parser.add_argument("-po", "--pickle_output",  default='./data/data_skel_float/', help="Path to store mean and std")
 
 args = parser.parse_args()
-out = os.path.basename(args.data_path).split('_')[0] + '_' + args.part+'_norm_test_float'
+out = os.path.basename(args.data_path).split('_')[0] + '_' + args.part+'_norm_float'
 out_path = os.path.join(args.out_path, out)
 print('Saving output to ',out_path)
 create_dir(out_path)

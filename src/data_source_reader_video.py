@@ -92,7 +92,7 @@ class SkeletonsDataset(Dataset):
         labels = labels.view(-1)
         #print(train_data_source.shape, labels.shape)
         # return train_data_source, labels.t().contiguous(),file_names  #Taking Top 100 frames because of having extra data and unnecessary padding with 0s
-        return train_data_source, labels.t().contiguous()  # Taking Top 100 frames because of having extra data and unnecessary padding with 0s
+        return train_data_source, labels.t().contiguous(), file_names  # Taking Top 100 frames because of having extra data and unnecessary padding with 0s
 
     def remove_troubled_classes(self):
         print("ORIGNAL SIZE : ",len(self.data_files_info))
