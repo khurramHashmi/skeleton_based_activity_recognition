@@ -8,33 +8,14 @@ from statistics import mean
 from torch.nn import CrossEntropyLoss, MSELoss
 # Local Modules
 #os.chdir("./../")
-from data_source_reader import *
-from model import RAE, simple_autoencoder
+from data_source_reader_video import *
+from model import SimpleAutoEncoderVideo
 #os.chdir("../")
 #from utils import create_dir
 
 os.environ["WANDB_API_KEY"] = "cbf5ed4387d24dbdda68d6de22de808c592f792e"
 os.environ["WANDB_ENTITY"] = "khurram"
 
-def prepare_dataset(sequences):
-    if type(sequences) == list:
-        dataset = []
-        for sequence in sequences:
-            updated_seq = []
-            for vec in sequence:
-                if type(vec) == list:
-                    updated_seq.append([float(elem) for elem in vec])
-                else: # Sequence is 1-D
-                    updated_seq.append([float(vec)])
-
-            dataset.append(torch.tensor(updated_seq))
-    elif type(sequences) == torch.tensor:
-        dataset = [sequences[i] for i in range(len(sequences))]
-    # dataset = sequences
-    shape = torch.stack(dataset).shape
-    assert(len(shape) == 3)
-
-    return dataset, shape[1], shape[2]
 
 
 def evaluate(eval_model, eval_loader, reshape_size):
@@ -77,7 +58,7 @@ def train_model(model, train_loader, eval_loader, lr, epochs, logging, out_path,
     criterion = MSELoss()
     print_once=True
     curr_loss = float("inf")
-
+    lr_change_count = 0
     for epoch in range(1, epochs + 1):
         losses = []
         model.train()
@@ -120,14 +101,17 @@ def train_model(model, train_loader, eval_loader, lr, epochs, logging, out_path,
             if val_loss < curr_loss:
                 curr_loss = val_loss
                 logging.info('Saving model')
-                torch.save(model.state_dict(), os.path.join(out_path, 'subject_skeleton_autoencoder_int_rgb.pth'))
-
-            for param_group in optimizer.param_groups:
-                param_group["lr"] = lr * (0.993 ** epoch)
+                torch.save(model.state_dict(), os.path.join(out_path, 'subject_video_autoencoder_int_rgb_512.pth'))
+            wandb.log({"test_loss": val_loss})
+            if lr_change_count < 3:
+                for param_group in optimizer.param_groups:
+                    param_group["lr"] = lr * (0.993 ** epoch)
+                lr_change_count +=1
 
         logging.info("Epoch: {}, Loss: {}".format(str(epoch), str(mean(losses))))
         print("Epoch: {}, Loss: {}".format(str(epoch), str(mean(losses))))
         wandb.log({"train_loss": mean(losses), "learing_rate": optimizer.param_groups[0]['lr']})
+
             
     return model
 
@@ -138,40 +122,38 @@ parser.add_argument("-eb", "--eval_batch_size", default=100, type=int, help="Bat
 parser.add_argument("-tr_d", "--train_data", default='../xsub_train_norm_rgb.csv', help='Path to training data')
 parser.add_argument("-ev_d", "--eval_data", default='../xsub_val_norm_rgb.csv', help='Path to eval data')
 parser.add_argument("-ts_d", "--test_data", help='Path to test data')
-parser.add_argument("-o", "--output", help='Path to save autoencoder weights', default='/netscratch/m_ahmed/skeleton_activity/autoencoder_weights_skeleton/')
+parser.add_argument("-o", "--output", help='Path to save autoencoder weights', default='../data/data_rgb_new/autoencoder_weights_video/')
 parser.add_argument("-e", "--epochs", type=int, default=100, help='Number of epochs to train model for')
 parser.add_argument("-dropout", "--dropout", type=float, default=0.2, help='Dropout value, default is 0.2')
-parser.add_argument("-t", "--tr_type", default='skeleton', help='Train on video or skeleton')
+parser.add_argument("-t", "--tr_type", default='video', help='Train on video or skeleton')
 parser.add_argument("-r", "--resume_bool", default=False, help='Train on video or skeleton')
-parser.add_argument("-cp", "--check_point", help="path to load autoencoder from", default="autoencoder_weights/subject_skeleton_autoencoder_int_rgb.pth")
+parser.add_argument("-rc", "--resume_checkpoint", help="path to store model weights", default="../data/data_rgb_new/autoencoder_weights_video/subject_video_autoencoder_int_rgb_512.pth")
 
 
 args = parser.parse_args()
 # initalize wandb
 wandb.init(project="Auto Encoders", reinit=True)
 
-LOG_FILENAME = 'experiment_real_Skeleton_RGB.log'
+LOG_FILENAME = 'experiment_video_AE_only_RGB.log'
 # Set up a specific logger with our desired output level
 my_logger = logging.getLogger('MyLogger')
 my_logger.setLevel(logging.INFO)
 logging.basicConfig(filename=LOG_FILENAME,level=logging.DEBUG)
 
-train_dataset = SkeletonsDataset(args.train_data, args.batch_size, '../xsub_train_mean_std.pickle', '../xsub_val_mean_std.pickle')
+train_dataset = SkeletonsDataset(args.train_data, args.batch_size, '../data/data_rgb_new/xsub_train_mean_std.pickle', '../data/data_rgb_new/xsub_val_mean_std.pickle')
 train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=False)
 
-eval_dataset = SkeletonsDataset(args.eval_data, args.eval_batch_size, '../xsub_train_mean_std.pickle', '../xsub_val_mean_std.pickle')
+eval_dataset = SkeletonsDataset(args.eval_data, args.eval_batch_size, '../data/data_rgb_new/xsub_train_mean_std.pickle', '../data/data_rgb_new/xsub_val_mean_std.pickle')
 eval_loader = DataLoader(eval_dataset, batch_size=args.eval_batch_size, shuffle=False)
 if not os.path.exists(args.output):
     os.mkdir(args.output)
 
-seq_len =1
-num_features = 100
-model = simple_autoencoder().cuda()
+model = SimpleAutoEncoderVideo().cuda()
 
 if args.resume_bool:
     # Resuming the model from the specific checkpoint
-    model = simple_autoencoder()
-    model.load_state_dict(torch.load(args.check_point))
+    model = SimpleAutoEncoderVideo()
+    model.load_state_dict(torch.load(args.resume_checkpoint))
 
 #RAE(seq_len, num_features, 75)
 if args.tr_type == 'video':
