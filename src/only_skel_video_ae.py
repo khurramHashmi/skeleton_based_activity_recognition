@@ -9,6 +9,7 @@ from model_transformer import *
 from torch.utils.data import DataLoader
 from embeddings.main_model import UnsuperVisedAE
 from data_source_reader_video import SkeletonsDataset
+from embeddings.main_model import SkeletonAutoEnoder, VideoAutoEnoder_sep, skeleton_lstm, resnet50_train
 
 # env vairables
 os.environ["WANDB_MODE"] = "dryrun"
@@ -16,11 +17,10 @@ os.environ["WANDB_MODE"] = "dryrun"
 # os.environ["WANDB_ENTITY"] = "khurram"
 
 
-def train(step_count_tb, batch_size, logging):
+def train(batch_size, logging):
     '''
         Function for training 1 epoch of network
         args:
-            -step_count_tb: current epoch iteration
             -draw_graph: argument for whether to draw graph displaying number of frames in each example or not of a single batch
         returns:
             -current loss value
@@ -28,68 +28,56 @@ def train(step_count_tb, batch_size, logging):
     '''
 
     model.train()  # Turn on the train mode
-    total_loss = 0.
+    total_loss = []
     start_time = time.time()
     sum_curl_loss = 0
-    # for batch, i in enumerate(range(0, 5 - 1, bptt)): # Size will be the number of videos in the sequence
     batch = 10
     batch_count = 0
-
+    log_interval = 50
     sum_skel_loss = []
     sum_video_loss = []
-
-    for data, targets, __ in train_loader: # 100, 75, 150
+    
+    for batch_idx, (data, targets, __) in enumerate(train_loader):
 
         data = data.to(device)
-        skel_data = data.view(75 * batch_size, 150)
+        targets = targets.to(device)
         # skel_data = data
-        # logging.info('batch shape: {}'.format(skel_data.shape))
+        # data = data.reshape((100,1,11250))
+        # skel_data = data
         optimizer.zero_grad()
 
-        skel_decoded, video_decoded = model(data)
-
+        # skel_decoded, video_decoded = model(data)
+        skel_decoded = model(data)
         # calculate all the losses and perform backprop
-        print(skel_decoded.shape)
-        print(skel_data.shape)
-        skel_loss = skel_criterion(skel_decoded, skel_data)
-        video_loss = video_criterion(video_decoded, skel_data)
-
-        sum_skel_loss.append(skel_loss.item())
-        sum_video_loss.append(video_loss.item())
-
-        loss = skel_loss + video_loss
-
+        targets = targets.view(-1)
+        loss = skel_criterion(skel_decoded, targets)
+        #video_loss = video_criterion(video_decoded, skel_data)
+        # sum_skel_loss.append(skel_loss.item())
+        # sum_video_loss.append(video_loss.item())
+        # loss = skel_loss #+ video_loss
         loss.backward()
         torch.nn.utils.clip_grad_norm_(model.parameters(), 0.5)
         optimizer.step()
-        total_loss += loss.item()
-        sum_curl_loss += loss.item()
+        total_loss.append(loss.item())
+        # sum_curl_loss += loss.item()
 
-        log_interval = 500
-        batch += 10
         # logging interval
-        if batch % log_interval == 0 and batch > 0:
-            cur_loss = total_loss / log_interval
+        if batch_idx % log_interval == 0 and batch_idx > 0:
 
             elapsed = time.time() - start_time
             print('| epoch {:3d} | {:5d}/{:5d} batches | '
                   'lr {:02.4f} | ms/batch {:5.2f} | '
                   'loss {:5.2f} '.format(
-                epoch, batch, len(data), optimizer.param_groups[0]['lr'],
-                elapsed * 1000 / log_interval, cur_loss))
-            print(" Loss For each 50 batch : {}".format(total_loss))
-            total_loss = 0
-            step_count_tb += 1
-            batch = 10
+                epoch, batch_idx, len(data), optimizer.param_groups[0]['lr'],
+                elapsed * 1000 / log_interval, loss.item()))
             start_time = time.time()
-        batch_count += 1
+
         # wandb.sklearn.plot_confusion_matrix(targets.cpu().numpy().squeeze(), predicted.cpu().numpy(), labels=classes)
 
-    print(" Mean Skel LOSS : {} and STD DEV : {}".format(np.mean(sum_skel_loss), np.std(sum_skel_loss)))
-    print(" Mean Video LOSS : {} and STD DEV : {}".format(np.mean(sum_video_loss), np.std(sum_video_loss)))
-    print(" TOTAL LOSS : {} and SIZE DATA LOADER : {}".format(sum_curl_loss, len(train_loader)))
-
-    return sum_curl_loss / len(train_loader)
+    # print(" Mean Skel LOSS : {} and STD DEV : {}".format(np.mean(sum_skel_loss), np.std(sum_skel_loss)))
+    # print(" Mean Video LOSS : {} and STD DEV : {}".format(np.mean(sum_video_loss), np.std(sum_video_loss)))
+    epoch_loss = np.sum(total_loss)/len(train_loader)
+    return epoch_loss
     # write_to_graph('train/loss', sum_curl_loss/len(train_loader), writer, step_count_tb)
 
 
@@ -108,32 +96,26 @@ def evaluate(eval_model, eval_loader, batch_size, draw_img=False, visualize=Fals
     '''
 
     eval_model.eval()  # Turn on the evaluation mode
-    total_loss = 0.
-
+    total_loss = []
 
     with torch.no_grad():
-        for data, __, __ in eval_loader:
+        for data, targets, __ in eval_loader:
 
             data = data.to(device) # 100, 75, 150
-            skel_data = data.view(75 * batch_size, 150) # 7500, 150
-
+            # skel_data = data#.view(75 * batch_size, 150) # 7500, 150
+            # data = data.reshape((100,1,11250))
             optimizer.zero_grad()
-
-            skel_decoded, video_decoded = model(data)
-
+            # skel_decoded, video_decoded = model(data)
+            skel_decoded = model(data)
             # calculate all the losses and perform backprop
-            skel_loss = skel_criterion(skel_decoded, skel_data)
-            video_loss = video_criterion(video_decoded, skel_data)
-            # print(" Skeleton LOSS : {} ".format(skel_loss))
-            # print(" Video LOSS : {} ".format(video_loss))
-            # print(" Class LOSS : {} ".format(class_loss))
-            loss = skel_loss + video_loss
-            total_loss += loss.item()
+            targets = targets.to(device)
+            targets = targets.view(-1)
+            loss = skel_criterion(skel_decoded, targets)
+#            video_loss = video_criterion(video_decoded, skel_data)
+            # loss = skel_loss #+ video_loss
+            total_loss.append(loss.item())
 
-        total_samples = (len(eval_loader))
-
-    print(" TOTAL LOSS : {} and total samples : {}".format(total_loss, total_samples))
-    return total_loss / total_samples
+    return np.sum(total_loss) / len(eval_loader)
 
 
 
@@ -151,7 +133,7 @@ parser.add_argument("-hid_dim", "--nhid", type=int, default=8, help='Number of h
 parser.add_argument("-dropout", "--dropout", type=float, default=0.2, help='Dropout value, default is 0.2')
 parser.add_argument("-t", "--train", help="Put Model in training mode", default=True)
 parser.add_argument("-f", "--frame_count", help="Frame count per video", default=60)
-parser.add_argument("-c", "--checkpoint", help="path to store model weights", default="/netscratch/m_ahmed/skeleton_activity/autoencoder_network_video/")
+parser.add_argument("-c", "--checkpoint", help="path to store model weights", default="/netscratch/m_ahmed/skeleton_activity/resnet50_train/")
 parser.add_argument("-bs", "--batch_shuffle", help="path to store model weights", default=True)
 parser.add_argument("-rc", "--resume_checkpoint", help="path to store model weights", default="./logs/output_2020-09-22 12:37:39.576905/epoch_2020-09-23 06:34:34.803320")
 parser.add_argument("-r", "--resume_bool", default=False, help='Whether to resume training or start from scratch')
@@ -161,8 +143,8 @@ parser.add_argument("-ac", "--ae_checkpoint", help="path to load autoencoder fro
 args = parser.parse_args()
 
 # initalize wandb
-wandb.init(project="Skel_class", reinit=True)
-LOG_FILENAME = 'experiment_only_skel_video_ae.log'
+wandb.init(project="resnet50_train", reinit=True)
+LOG_FILENAME = 'resnet50_train.log'
 # Set up a specific logger with our desired output level
 my_logger = logging.getLogger('MyLogger')
 my_logger.setLevel(logging.INFO)
@@ -173,9 +155,9 @@ kwargs = {'num_workers': 1, 'pin_memory': True} if device == 'cuda' else {}
 
 if args.train:
 
-    train_dataset = SkeletonsDataset(args.train_data, args.batch_size, './data/xsub_train_mean_std_f.pickle', './data/xsub_val_mean_std_f.pickle')
+    train_dataset = SkeletonsDataset(args.train_data, args.batch_size, './data/xsub_train_mean_std_f.pickle', './data/xsub_val_mean_std_f.pickle', image_dataset=True)
     train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=args.batch_shuffle, **kwargs)
-    eval_dataset = SkeletonsDataset(args.eval_data, args.eval_batch_size, './data/xsub_train_mean_std_f.pickle', './data/xsub_val_mean_std_f.pickle')
+    eval_dataset = SkeletonsDataset(args.eval_data, args.eval_batch_size, './data/xsub_train_mean_std_f.pickle', './data/xsub_val_mean_std_f.pickle', image_dataset=True)
     eval_loader = DataLoader(eval_dataset, batch_size=args.eval_batch_size, shuffle=args.batch_shuffle, **kwargs)
 
     '''
@@ -183,15 +165,17 @@ if args.train:
         Classification Network     
         Defining the criterion for losses
     '''
-    model = UnsuperVisedAE(batch_size=args.batch_size).to(device)
-
-    skel_criterion = nn.MSELoss(reduction='sum')
-    video_criterion = nn.MSELoss(reduction='sum')
-
+    #model = UnsuperVisedAE(batch_size=args.batch_size).to(device)
+    #model = SkeletonAutoEnoder().to(device)
+    #model = VideoAutoEnoder_sep(batch_size=args.batch_size).to(device)
+    #model = skeleton_lstm(n_features=150).to(device)
+    model = resnet50_train().to(device)
+    
+    skel_criterion = nn.CrossEntropyLoss() #nn.MSELoss(reduction='sum')
+    #video_criterion = nn.MSELoss(reduction='sum')
     optimizer = torch.optim.Adam(model.parameters(), lr=args.learning_rate)
 
     print(model)
-
 
     best_val_loss = float("inf")
     max_epochs = args.epochs  # number of epochs
@@ -220,7 +204,7 @@ if args.train:
         epoch_start_time = time.time()
         current_date_time = str(datetime.datetime.now()).split(",")[0]
 
-        tr_loss = train(step_count_tb, args.batch_size, logging)
+        tr_loss = train(args.batch_size, logging)
         print('| end of epoch {:3d} | time: {:5.2f}s | Train loss {:5.4f} | '.format(epoch, (time.time() - epoch_start_time), tr_loss))
         logging.info('| end of epoch {:3d} | time: {:5.2f}s | Train loss {:5.4f} | '.format(epoch, (time.time() - epoch_start_time), tr_loss))
         if epoch == max_epochs - 1:
