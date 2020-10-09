@@ -1,30 +1,30 @@
 import re
-import numpy as np
-import pandas as pd
 import torch
 import pickle
+import numpy as np
+import pandas as pd
 from torch.utils.data import Dataset, DataLoader
 
 class SkeletonsDataset(Dataset):
     """Skeletons dataset."""
-    def __init__(self, data_file_info,batch_size, pickle_path_train, pickle_path_val):
+    def __init__(self, data_file_info,batch_size, pickle_path_train, pickle_path_val, image_dataset=False):
         #Read the file containing the list of files having label and coordinates.
+        self.print_once=True
         self.data_files_info = pd.read_csv(data_file_info,delimiter=",")
 
         # removing the troubled classes for now code starts here
-        # self.data_files_info = self.remove_troubled_classes()
+        self.data_files_info = self.remove_troubled_classes()
         # removing the troubled classes for now code Ends here
-
         self.batch_size = batch_size
-
         remainder = (len(self.data_files_info) % batch_size)
         self.data_files_info = self.data_files_info[:len(self.data_files_info)-remainder]
 
-        # self.mean_std = pickle.load(open(pickle_path_train, 'rb'))
-        # temp_mean = pickle.load(open(pickle_path_val, 'rb'))
-        # self.mean_std['mean'] = (self.mean_std['mean'] + temp_mean['mean'])/2
-        # self.mean_std['std'] = (self.mean_std['std'] + temp_mean['std'])/2
+        self.mean_std = pickle.load(open(pickle_path_train, 'rb'))
+        temp_mean = pickle.load(open(pickle_path_val, 'rb'))
+        self.mean_std['mean'] = (self.mean_std['mean'] + temp_mean['mean'])/2
+        self.mean_std['std'] = (self.mean_std['std'] + temp_mean['std'])/2
         print("***** Example shape {} *****".format(self.data_files_info.shape))
+        self.image_dataset=image_dataset
 
     def __len__(self):
         # return self.chunk_size
@@ -83,16 +83,32 @@ class SkeletonsDataset(Dataset):
         # print(type(data_source[0][0]), type(batch_sample_temp['values'][0][0]))
         # data_source = batch_sample['values']
 
-        # data_source = np.array()
+        data_source = np.array(data_source)
+        data_source = (data_source - self.mean_std['mean'])/self.mean_std['std']
+        
+        if self.image_dataset: # for creating image dataset
+            # reshape the values into image form
+            data_source = data_source.reshape((75, 50, 3))
+            # add padding
+            pad = np.zeros((75,13,3))
+            data_source = np.hstack((data_source, pad))
+            # add pading at end
+            pad = np.zeros((75,12,3))
+            data_source = np.hstack((pad, data_source))
+            assert data_source.shape == (75,75,3), print('wrong dimension image created')
+            
+            if self.print_once:
+                print('Data shape {}'.format(data_source.shape))
+                self.print_once=False
 
-        # data_source = (data_source - self.mean_std['mean'])/self.mean_std['std']
         train_data_source = torch.tensor(data_source, dtype=torch.float)
+        train_data_source = train_data_source.permute(2, 0, 1)
         labels = torch.tensor(labels, dtype=torch.long)
 
         labels = labels.view(-1)
         #print(train_data_source.shape, labels.shape)
         # return train_data_source, labels.t().contiguous(),file_names  #Taking Top 100 frames because of having extra data and unnecessary padding with 0s
-        return train_data_source, labels.t().contiguous(), file_names  # Taking Top 100 frames because of having extra data and unnecessary padding with 0s
+        return train_data_source, labels.t().contiguous(), file_names  # Taking Top 100 frames because of having extra data and unnecessary padding with 0
 
     def remove_troubled_classes(self):
         print("ORIGNAL SIZE : ",len(self.data_files_info))
