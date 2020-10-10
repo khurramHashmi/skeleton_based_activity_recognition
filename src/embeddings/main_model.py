@@ -1,7 +1,6 @@
 import torch.nn.functional as F
 import torch.nn as nn
-from torchvision.models import resnet50, resnext50_32x4d
-from torchvision.models import resnet50, resnet18
+from torchvision.models import resnet50, resnext50_32x4d, resnet18
 
 '''
     New classes for the combined model
