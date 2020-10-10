@@ -1,6 +1,7 @@
 import torch.nn.functional as F
 import torch.nn as nn
 from torchvision.models import resnet50, resnext50_32x4d
+from torchvision.models import resnet50, resnet18
 
 '''
     New classes for the combined model
@@ -21,15 +22,31 @@ class resnext_train(nn.Module):
 
 class resnet50_train(nn.Module):
 
-  def __init__(self, n_classes=60):
-    
-    super(resnet50_train, self).__init__()
-    self.model = resnet50(pretrained=False)
-    num_ftrs = self.model.fc.in_features
-    self.model.fc = nn.Linear(num_ftrs, n_classes)
-  
-  def forward(self, x):
-    return self.model(x)
+    def __init__(self, n_classes=60):
+
+        super(resnet50_train, self).__init__()
+        self.model = resnet50(pretrained=False)
+
+        num_ftrs = self.model.fc.in_features
+        self.model.fc = nn.Linear(num_ftrs, n_classes)
+
+
+    def forward(self, x):
+        return self.model(x)
+
+
+class resnet18_train(nn.Module):
+
+    def __init__(self, n_classes=60):
+        super(resnet18_train, self).__init__()
+        self.model = resnet18(pretrained=False)
+        num_ftrs = self.model.fc.in_features
+        self.model.relu = nn.LeakyReLU(0.1)
+        self.model.fc = nn.Linear(num_ftrs, n_classes)
+
+        self.model.layer1[0]
+    def forward(self, x):
+        return self.model(x)
 
 class SkeletonAutoEnoder(nn.Module):
 
