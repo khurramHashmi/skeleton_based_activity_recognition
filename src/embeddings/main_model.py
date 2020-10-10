@@ -1,6 +1,6 @@
 import torch.nn.functional as F
 import torch.nn as nn
-from torchvision.models import resnet50
+from torchvision.models import resnet50, resnext50_32x4d
 
 '''
     New classes for the combined model
@@ -8,6 +8,16 @@ from torchvision.models import resnet50
     AutoEncoder with Videos
     Classification Network At the end
 '''
+class resnext_train(nn.Module):
+
+    def __init__(self, n_classes=60):
+        super(resnext_train, self).__init__()
+        self.model = resnext50_32x4d(pretrained=False)
+        num_ftrs = self.model.fc.in_features
+        self.model.fc = nn.Linear(num_ftrs, n_classes)
+
+    def forward(self, x):
+        return self.model(x)
 
 class resnet50_train(nn.Module):
 

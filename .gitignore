@@ -10,3 +10,7 @@ wandb
 *.pyc
 logs/*
 *.csv
+*.xml
+*.iml
+.idea/*
+src/logs/*

@@ -5,16 +5,16 @@ import datetime
 import argparse
 from utils import *
 from model_transformer import *
+from embeddings.main_model import *
 from torch.utils.data import DataLoader
 from data_source_reader_video import SkeletonsDataset
-from embeddings.main_model import *
+from torch.optim.lr_scheduler import ReduceLROnPlateau
 
 # env vairables
 os.environ["WANDB_API_KEY"] = "cbf5ed4387d24dbdda68d6de22de808c592f792e"
 os.environ["WANDB_ENTITY"] = "khurram"
 
-
-def train(batch_size, logging):
+def train():
     '''
         Function for training 1 epoch of network
         args:
@@ -31,9 +31,8 @@ def train(batch_size, logging):
     total_loss = []
     start_time = time.time()
     sum_curl_loss = 0
-    batch = 10
     batch_count = 0
-    log_interval = 50
+    log_interval = 500
     sum_skel_loss = []
     sum_video_loss = []
 
@@ -93,20 +92,16 @@ def train(batch_size, logging):
     print('=' * 89)
     acc = calculate_accuracy(class_correct,class_total)
     print('=' * 89)
-    return epoch_loss
+    return epoch_loss, acc
     # write_to_graph('train/loss', sum_curl_loss/len(train_loader), writer, step_count_tb)
 
 
-def evaluate(eval_model, eval_loader, batch_size, draw_img=False, visualize=False, out_path=''):
+def evaluate(eval_model, eval_loader):
     '''
         Function to evaluate model performance
         args:
             -eval_model: model to be used for evaluation purposes
             -eval_loader: data loader for data loading
-            -draw_img: argument to draw confusion matrix at end of evaluation or not
-            -visualize: argument to draw skeletons for visualization purposes
-            -out_path: output path for visualization images
-
         returns:
             Loss and accuracy for given dataset
     '''
@@ -147,7 +142,7 @@ def evaluate(eval_model, eval_loader, batch_size, draw_img=False, visualize=Fals
     print('=' * 89)
     val_acc = calculate_accuracy(class_correct, class_total)
 
-    return np.sum(total_loss) / len(eval_loader)
+    return np.sum(total_loss) / len(eval_loader), val_acc
 
 def calculate_accuracy(class_correct, class_total):
     acc_sum = 0
@@ -167,7 +162,7 @@ def calculate_accuracy(class_correct, class_total):
 # training arguments
 parser = argparse.ArgumentParser(description="Skeleton Classification Training Script")
 parser.add_argument("-lr", "--learning_rate", default=0.001, type=float, help="Learning rate of model. Default 5.0")
-parser.add_argument("-b", "--batch_size", default=2, type=int, help="Batch Size for training")
+parser.add_argument("-b", "--batch_size", default=100, type=int, help="Batch Size for training")
 parser.add_argument("-eb", "--eval_batch_size", default=100, type=int, help="Batch Size for evaluation")
 parser.add_argument("-tr_d", "--train_data", default='./csv_data_read/xsub_train_norm_skel_float.csv',
                     help='Path to training data')
@@ -179,7 +174,7 @@ parser.add_argument("-hid_dim", "--nhid", type=int, default=8, help='Number of h
 parser.add_argument("-dropout", "--dropout", type=float, default=0.2, help='Dropout value, default is 0.2')
 parser.add_argument("-t", "--train", help="Put Model in training mode", default=True)
 parser.add_argument("-f", "--frame_count", help="Frame count per video", default=60)
-parser.add_argument("-c", "--checkpoint", help="path to store model weights", default="./logs/resnet50_")
+parser.add_argument("-c", "--checkpoint", help="path to store model weights", default="./logs/resnet18")
 parser.add_argument("-bs", "--batch_shuffle", help="path to store model weights", default=True)
 parser.add_argument("-rc", "--resume_checkpoint", help="path to store model weights",
                     default="./logs/output_2020-09-22 12:37:39.576905/epoch_2020-09-23 06:34:34.803320")
@@ -237,6 +232,7 @@ if args.train:
     skel_criterion = nn.CrossEntropyLoss()  # nn.MSELoss(reduction='sum')
     # video_criterion = nn.MSELoss(reduction='sum')
     optimizer = torch.optim.Adam(model.parameters(), lr=args.learning_rate)
+    scheduler = ReduceLROnPlateau(optimizer, 'min')
 
     print(model)
 
@@ -267,25 +263,22 @@ if args.train:
         epoch_start_time = time.time()
         current_date_time = str(datetime.datetime.now()).split(",")[0]
 
-        tr_loss = train(args.batch_size, logging)
+        tr_loss, tr_acc = train()
         print('| end of epoch {:3d} | time: {:5.2f}s | Train loss {:5.4f} | '.format(epoch,
                                                                                      (time.time() - epoch_start_time),
                                                                                      tr_loss))
         logging.info('| end of epoch {:3d} | time: {:5.2f}s | Train loss {:5.4f} | '.format(epoch, (
                     time.time() - epoch_start_time), tr_loss))
-        if epoch == max_epochs - 1:
-            print('***** in this line part *****')
-            val_loss = evaluate(model, eval_loader, args.batch_size, draw_img=False, visualize=False,
-                                out_path=skeleton_output)
-        else:
-            val_loss = evaluate(model, eval_loader, args.batch_size)
 
-        wandb.log({"train_loss": tr_loss, "test_loss": val_loss,
-                   "learing_rate": optimizer.param_groups[0]['lr']})
+        val_loss, val_acc = evaluate(model, eval_loader)
+        scheduler.step(val_loss)
+
+        wandb.log({"train_loss": tr_loss, "train_accuracy":tr_acc, "test_loss": val_loss,
+                   "learing_rate": optimizer.param_groups[0]['lr'], "test_accuracy":val_acc})
         print('-' * 89)
-        print('| end of epoch {:3d} | time: {:5.2f}s | valid loss {:5.4f} | '.format(epoch,
+        print('| end of epoch {:3d} | time: {:5.2f}s | valid loss {:5.4f} | valid acc {:5.4f} | '.format(epoch,
                                                                                      (time.time() - epoch_start_time),
-                                                                                     val_loss))
+                                                                                     val_loss, val_acc))
         logging.info('| end of epoch {:3d} | time: {:5.2f}s | valid loss {:5.4f} | '.format(epoch, (
                     time.time() - epoch_start_time), val_loss))
         print('-' * 89)
