@@ -4,15 +4,18 @@ import logging
 import datetime
 import argparse
 from utils import *
-from model_transformer import *
-from embeddings.main_model import *
+import torch
+import torch.nn as nn
 from torch.utils.data import DataLoader
 from data_source_reader_video import SkeletonsDataset
 from torch.optim.lr_scheduler import ReduceLROnPlateau
-from resnet_models import resnet18
-
+# from resnet_models import resnet18
+from embeddings.main_model import resnet18_train
+from ntu_preprocess import *
+import cv2
+import pickle
 # env vairables
-# os.environ["WANDB_MODE"] = "dryrun"
+os.environ["WANDB_MODE"] = "dryrun"
 os.environ["WANDB_API_KEY"] = "cbf5ed4387d24dbdda68d6de22de808c592f792e"
 os.environ["WANDB_ENTITY"] = "khurram"
 
@@ -42,22 +45,24 @@ def train():
 
         data = data.to(device)
         targets = targets.to(device)
+
         # skel_data = data
-        # data = data.reshape((100,1,11250))
         # skel_data = data
         optimizer.zero_grad()
 
         # skel_decoded, video_decoded = model(data)
         skel_decoded = model(data)
-        # calculate all the losses and perform backprop
-        targets = targets.view(-1)
+
+
+        # print(targets)
+        targets= targets.view(-1)
         loss = skel_criterion(skel_decoded, targets)
 
         # Calculating accuracies
         _, predicted = torch.max(skel_decoded.view(-1, len(classes)), 1)
         c = (predicted == targets).squeeze()
 
-        for i in range(args.batch_size):
+        for i in range(targets.shape[0]):
             label = targets[i]
             class_correct[label] += c[i].item()
             class_total[label] = class_total[label] + 1
@@ -98,6 +103,7 @@ def train():
     # write_to_graph('train/loss', sum_curl_loss/len(train_loader), writer, step_count_tb)
 
 
+
 def evaluate(eval_model, eval_loader):
     '''
         Function to evaluate model performance
@@ -134,7 +140,7 @@ def evaluate(eval_model, eval_loader):
             _, predicted = torch.max(skel_decoded.view(-1, len(classes)), 1)
             c = (predicted == targets).squeeze()
 
-            for i in range(args.batch_size):
+            for i in range(targets.shape[0]):
                 label = targets[i]
                 class_correct[label] += c[i].item()
                 class_total[label] = class_total[label] + 1
@@ -176,7 +182,7 @@ parser.add_argument("-hid_dim", "--nhid", type=int, default=8, help='Number of h
 parser.add_argument("-dropout", "--dropout", type=float, default=0.2, help='Dropout value, default is 0.2')
 parser.add_argument("-t", "--train", help="Put Model in training mode", default=True)
 parser.add_argument("-f", "--frame_count", help="Frame count per video", default=60)
-parser.add_argument("-c", "--checkpoint", help="path to store model weights", default="./logs/resnet18_dropout")
+parser.add_argument("-c", "--checkpoint", help="path to store model weights", default="./logs/cnn_do_0.25_")
 parser.add_argument("-bs", "--batch_shuffle", help="path to store model weights", default=True)
 parser.add_argument("-rc", "--resume_checkpoint", help="path to store model weights",
                     default="./logs/output_2020-09-22 12:37:39.576905/epoch_2020-09-23 06:34:34.803320")
@@ -203,7 +209,7 @@ classes = ["drink water", "eat meal", "brush teeth", "brush hair", "drop", "pick
 
 
 # initalize wandb
-wandb.init(project="CNN_activity", reinit=True)
+wandb.init(project="CNN_new_data", reinit=True)
 # Set up a specific logger with our desired output level
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -211,14 +217,16 @@ kwargs = {'num_workers': 1, 'pin_memory': True} if device == 'cuda' else {}
 
 if args.train:
 
-    train_dataset = SkeletonsDataset(args.train_data, args.batch_size,
-                                     './data/data_skel_float/xsub_train_mean_std_f.pickle',
-                                     './data/data_skel_float/xsub_val_mean_std_f.pickle', image_dataset=True)
+    base_path = "/home/hashmi/Desktop/dataset/NTURGBD-60_120/ntu_60"  # "/home/neuralnet/NW_UCLA/" #
+
+
+    train_dataset = SkeletonsDataset(base_path, image_dataset=True)
+
+
     train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=args.batch_shuffle, **kwargs)
 
-    eval_dataset = SkeletonsDataset(args.eval_data, args.eval_batch_size,
-                                    './data/data_skel_float/xsub_train_mean_std_f.pickle',
-                                    './data/data_skel_float/xsub_val_mean_std_f.pickle', image_dataset=True)
+    eval_dataset = train_dataset = SkeletonsDataset(base_path, mode='eval', image_dataset=True)
+
     eval_loader = DataLoader(eval_dataset, batch_size=args.eval_batch_size, shuffle=args.batch_shuffle, **kwargs)
     '''
         Loading all the models here
@@ -229,12 +237,14 @@ if args.train:
     # model = SkeletonAutoEnoder().to(device)
     # model = VideoAutoEnoder_sep(batch_size=args.batch_size).to(device)
     # model = skeleton_lstm(n_features=150).to(device)
-    model = resnet18().to(device)
+    model = resnet18_train().to(device)
+
 
     skel_criterion = nn.CrossEntropyLoss()  # nn.MSELoss(reduction='sum')
+
     # video_criterion = nn.MSELoss(reduction='sum')
     optimizer = torch.optim.Adam(model.parameters(), lr=args.learning_rate)
-    scheduler = ReduceLROnPlateau(optimizer, 'min', patience=2, min_lr=0.000001)
+    scheduler = ReduceLROnPlateau(optimizer, 'min', patience=4, min_lr=0.0001)
 
     print(model)
 
@@ -296,10 +306,14 @@ if args.train:
                 'loss': best_val_loss
             }, epoch_output_path)
 
-        if epoch % 100 == 0 and lr_change_count < 3:  # reducing learning rate for experiment
-            for param_group in optimizer.param_groups:
-                param_group["lr"] = param_group["lr"] * (0.993 ** epoch)
-            lr_change_count += 1
+
+
+    # for batch_idx, (data, targets) in enumerate(train_loader):
+    #     img = data[0].permute(1,2,0)
+    #     # img = img.cpu().detach().numpy()
+    #     print(img)
+    #     # cv2.imwrite("test.png",img)
+    #     break
 # else:
 #
 #     test_dataset = SkeletonsDataset(args.test_data, args.batch_size)
