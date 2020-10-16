@@ -176,7 +176,7 @@ parser.add_argument("-hid_dim", "--nhid", type=int, default=8, help='Number of h
 parser.add_argument("-dropout", "--dropout", type=float, default=0.2, help='Dropout value, default is 0.2')
 parser.add_argument("-t", "--train", help="Put Model in training mode", default=True)
 parser.add_argument("-f", "--frame_count", help="Frame count per video", default=60)
-parser.add_argument("-c", "--checkpoint", help="path to store model weights", default="./logs/resnet18_dropout")
+parser.add_argument("-c", "--checkpoint", help="path to store model weights", default="./logs/resnet18")
 parser.add_argument("-bs", "--batch_shuffle", help="path to store model weights", default=True)
 parser.add_argument("-rc", "--resume_checkpoint", help="path to store model weights",
                     default="./logs/output_2020-09-22 12:37:39.576905/epoch_2020-09-23 06:34:34.803320")
@@ -229,7 +229,7 @@ if args.train:
     # model = SkeletonAutoEnoder().to(device)
     # model = VideoAutoEnoder_sep(batch_size=args.batch_size).to(device)
     # model = skeleton_lstm(n_features=150).to(device)
-    model = resnet18().to(device)
+    model = resnet18_train().to(device)
 
     skel_criterion = nn.CrossEntropyLoss()  # nn.MSELoss(reduction='sum')
     # video_criterion = nn.MSELoss(reduction='sum')
