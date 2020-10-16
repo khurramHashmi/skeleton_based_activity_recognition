@@ -262,6 +262,54 @@ class VideoAutoEnoder_sep(nn.Module):
       x = self.decoder_forward(x)
       return x.reshape((100,75,150))
 
+class classification_nn(nn.Module):
+
+    def __init__(self, num_feature, num_class, batch_size):
+        super(classification_nn, self).__init__()
+
+        self.layer_1 = nn.Linear(num_feature, 512)
+        self.layer_2 = nn.Linear(512, 256)
+        self.layer_3 = nn.Linear(256, 128)
+        self.layer_3 = nn.Linear(128, 64)
+        self.layer_out = nn.Linear(64, num_class)
+
+        #self.relu = nn.ReLU()
+        self.tanh = nn.Tanh()
+        self.dropout = nn.Dropout(p=0.2)
+        self.bn1 = nn.BatchNorm1d(512)
+        self.bn2 = nn.BatchNorm1d(256)
+        self.bn3 = nn.BatchNorm1d(128)
+        self.bn4 = nn.BatchNorm1d(64)
+
+        self.batch_size = batch_size
+
+    def forward(self, x):
+
+        x = self.layer_1(x)
+        x = self.bn1(x)
+        x = self.tanh(x)
+        x = self.dropout(x)
+
+        x = self.layer_2(x)
+        x = self.bn2(x)
+        x = self.tanh(x)
+        x = self.dropout(x)
+
+        x = self.layer_3(x)
+        x = self.bn3(x)
+        x = self.tanh(x)
+        x = self.dropout(x)
+
+        x = self.layer_4(x)
+        x = self.bn4(x)
+        x = self.tanh(x)
+        x = self.dropout(x)
+
+        class_out = self.layer_out(x)
+        # class_out = F.softmax(class_out, dim=-1)
+
+        return class_out
+
 class classification_network_128(nn.Module):
 
     def __init__(self, num_feature, num_class, batch_size):
