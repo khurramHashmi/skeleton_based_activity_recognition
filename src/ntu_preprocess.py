@@ -45,21 +45,40 @@ def normalize_video(video):
     :param video:
     :return:
     """
-    max_75 = np.amax(video, axis=0)
-    min_75 = np.amin(video, axis=0)
-    max_x = np.max([max_75[i] for i in range(0,75,3)])
-    max_y = np.max([max_75[i] for i in range(1,75,3)])
-    max_z = np.max([max_75[i] for i in range(2,75,3)])
-    min_x = np.min([min_75[i] for i in range(0,75,3)])
-    min_y = np.min([min_75[i] for i in range(1,75,3)])
-    min_z = np.min([min_75[i] for i in range(2,75,3)])
-    norm = np.zeros_like(video)
-    for i in range(0,75,3):
-        norm[:,i] = 2*(video[:,i]-min_x)/(max_x-min_x)-1
-        norm[:,i+1] = 2*(video[:,i+1]-min_y)/(max_y-min_y)-1
-        norm[:,i+2] = 2*(video[:,i+2]-min_z)/(max_z-min_z)-1
-    return norm
+    # max_75 = np.amax(video, axis=0)
+    # min_75 = np.amin(video, axis=0)
+    # max_x = np.max([max_75[i] for i in range(0,75,3)])
+    # max_y = np.max([max_75[i] for i in range(1,75,3)])
+    # max_z = np.max([max_75[i] for i in range(2,75,3)])
+    # min_x = np.min([min_75[i] for i in range(0,75,3)])
+    # min_y = np.min([min_75[i] for i in range(1,75,3)])
+    # min_z = np.min([min_75[i] for i in range(2,75,3)])
+    #
+    # norm = np.zeros_like(video)
+    # for i in range(0,75,3):
+    #     norm[:,i] = 255*(video[:,i]-min_x)/(max_x-min_x)-1
+    #     norm[:,i+1] = 255*(video[:,i+1]-min_y)/(max_y-min_y)-1
+    #     norm[:,i+2] = 255*(video[:,i+2]-min_z)/(max_z-min_z)-1
+    #
+    # video = norm
+    # if video.shape[0] < 50:
+    #     video_temp = np.zeros((50,75))
+    #     video_temp[:video.shape[0], :] = np.copy(video)
+    #     video = video_temp
+    # video = video.reshape((50,25,3))
+    # means = np.mean(video, axis=tuple(range(video.ndim-1)))
+    # stddev = np.std(video, axis=tuple(range(video.ndim-1)))
 
+    center_joint = video[:, 0, :]
+
+    center_jointx = np.mean(center_joint[:, 0])
+    center_jointy = np.mean(center_joint[:, 1])
+    center_jointz = np.mean(center_joint[:, 2])
+
+    center = np.array([center_jointx, center_jointy, center_jointz])
+    video = video - center
+
+    return video
 
 def downsample(data, target_frame=50):
     """
@@ -141,6 +160,10 @@ def preprocess_pipeline(base_path, train_path, test_path, mode="cross_subject_da
     :param dsamp_frame: how many frames/sample for dataset
     :return:
     """
+
+    train_means = []
+    test_means = []
+    train_std, test_std = [], []
     train_data = load_data(os.path.join(base_path, mode+"/"+train_path))
     test_data = load_data(os.path.join(base_path, mode + "/" + test_path))
     print("Size of training data: ", len(train_data))
@@ -154,14 +177,24 @@ def preprocess_pipeline(base_path, train_path, test_path, mode="cross_subject_da
 
     print("Start Normalizing across all videos ----")
     # Normalize Videos
+
     for i in range(len(train_data)):
         train_data[i]['input'] = normalize_video(np.array(train_data[i]['input']))
+        # train_means.append(ex_mean)
+        # train_std.append(ex_dev)
+
     for i in range(len(test_data)):
         test_data[i]['input'] = normalize_video(np.array(test_data[i]['input']))
-
+        # test_means.append(ex_mean)
+        # test_std.append(ex_dev)
 
     dsamp_train = downsample(train_data, dsamp_frame)
     dsamp_test = downsample(test_data, dsamp_frame)
+
+    # train_means = np.array(train_means) # num_ex, 3
+    # test_means = np.array(test_means) # num_ex, 3
+    # train_means = (np.mean(train_means, axis=0) + np.mean(test_means, axis=0) /2)
+    # train_std = (np.mean(np.array(train_std), axis=0) + np.mean(np.array(test_std), axis=0) /2)
 
     print("Start generating data for classification")
     tr_fea, tr_label, tr_seq_len_new = data_for_classification(train_data, dsamp_train)
@@ -199,9 +232,9 @@ def data_for_classification(data, dsamp_data):
 
 
 if __name__ == "__main__":
-    base_path = "/home/neuralnet/NTU_60/" #"/home/neuralnet/NW_UCLA/" #
+    base_path = "/home/hashmi/Desktop/dataset/NTURGBD-60_120/ntu_60" #"/home/neuralnet/NW_UCLA/" #
     tr_path = "trans_train_data.pkl"
     te_path = "trans_test_data.pkl"
     dsamp_train, dsamp_test, fea, lab, seq_len_new,\
-    te_fea, te_lab, te_seq_len_new = preprocess_pipeline(base_path, tr_path, te_path, mode="cross_view_data", dsamp_frame=50)
+    te_fea, te_lab, te_seq_len_new = preprocess_pipeline(base_path, tr_path, te_path, mode="cross_subject_data", dsamp_frame=50)
     encoder_inputs, decoder_inputs, seq_len_enc = mini_batch(data=dsamp_train, seq_len=75, input_size=75, batch_size=32)
