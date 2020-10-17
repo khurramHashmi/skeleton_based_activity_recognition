@@ -18,83 +18,96 @@ def add_noise(noise_typ,image):
         noisy = image + gauss
     return noisy
 
+def rotation(data, alpha_beta=(0,0)):
+    # rotate the skeleton around x-y axis
+    r_alpha = alpha_beta[0] * np.pi / 180
+    r_beta = alpha_beta[1] * np.pi / 180
+
+    rx = np.array([[1, 0, 0],
+                   [0, np.cos(r_alpha), -1 * np.sin(r_alpha)],
+                   [0, np.sin(r_alpha), np.cos(r_alpha)]]
+                  )
+
+    ry = np.array([
+        [np.cos(r_beta), 0, np.sin(r_beta)],
+        [0, 1, 0],
+        [-1 * np.sin(r_beta), 0, np.cos(r_beta)],
+    ])
+
+    r = ry.dot(rx)
+    data = data.dot(r)
+
+    return data
 
 def augment(pickle_path, out_path, mode='train'):
 
-    out_path = out_path + mode + '_images/'
-
+    out_path = os.path.join(out_path,  mode + '_images')
     if not os.path.exists(out_path):
         os.mkdir(out_path)
 
     if mode == 'train':
-        input_features = pickle.load(open(pickle_path + "/dsamp_train.p", "rb"))
-        labels = pickle.load(open("labels_proper_train.p", "rb"))
+        input_features = pickle.load(open(pickle_path + "/trans_train_data.pkl", "rb"))
 
     else:
-        input_features = pickle.load(open(pickle_path + "/dsamp_test.p", "rb"))
-        labels = pickle.load(open("./labels_proper_test.p", "rb"))
+        input_features = pickle.load(open(pickle_path + "/trans_train_data.pkl", "rb"))
 
-    label_temp = labels.copy()
-    features = []
+    # label_temp = labels.copy()
     image_list = []
+    angle_combinations = [(0, 45), (30, 30), (90, 0), (45, 90), (120, 120), (45, 45), (15, 15), (45, 0), (90, 90)]
 
-    for i in tqdm.tqdm(range(len(labels))):
+    for i in tqdm.tqdm(range(len(input_features))):
 
-        if input_features[i].shape[0] < 50:
+        curr_example = np.array(input_features[i]['input'])
+        print(curr_example.shape)
+        if curr_example.shape[0] < 50:
             inputs = np.zeros((50, 75), dtype=float)
-            inputs[:input_features[i].shape[0], :] = np.copy(input_features[i])
-            input_features[i] = inputs
+            inputs[:curr_example.shape[0], :] = np.copy(curr_example)
+            video = inputs
+        else:
+            video = curr_example
 
-        video = np.reshape(input_features[i], (50, 25, 3))
-        curr_label = labels[i]
-        labels.pop(i)
-        indices = [i for i, x in enumerate(labels) if x == curr_label]
+        video = np.reshape(video, (50, 25, 3))
+        curr_label = input_features[i]['label']
+        # labels.pop(i)
+        # indices = [i for i, x in enumerate(labels) if x == curr_label]
+        top_frame = None
+        bottom_frame = None
 
-        new_base = None
+        for count in range(9):
 
-        for j in range(7):
-
-            idx = random.sample(indices, 1)[0]
-
-            corresponding_ex = input_features[idx]
-            if corresponding_ex.shape[0] < 50:
-                inputs = np.zeros((50, 75), dtype=float)
-                inputs[:corresponding_ex.shape[0], :] = np.copy(corresponding_ex)
-                corresponding_ex = inputs
-
-            corresponding_ex = add_noise("gauss",corresponding_ex.reshape((50,25,3)))
-
-            if j < 3:
-                video = np.hstack((video, corresponding_ex))
-            # elif j==1:
-            #     new_base = corresponding_ex
+            # apply rotation in pairs
+            aug_img = rotation(video, angle_combinations[count])
+            if count < 3:
+                top_frame = aug_img if top_frame is None else np.hstack((top_frame, aug_img))
             else:
-                new_base = corresponding_ex if new_base is None else np.hstack((new_base, corresponding_ex))
+                bottom_frame = aug_img if bottom_frame is None else np.hstack((bottom_frame, aug_img))
+            # idx = random.sample(indices, 1)[0]
+            # corresponding_ex = input_features[idx]
+            # if corresponding_ex.shape[0] < 50:
+            #     inputs = np.zeros((50, 75), dtype=float)
+            #     inputs[:corresponding_ex.shape[0], :] = np.copy(corresponding_ex)
+            #     corresponding_ex = inputs
+            #
+            # corresponding_ex = add_noise("gauss",corresponding_ex.reshape((50,25,3)))
+            # if j < 3:
+            #     video = np.hstack((video, corresponding_ex))
+            # else:
+            #     new_base = corresponding_ex if new_base is None else np.hstack((new_base, corresponding_ex))
 
-        img = video
-        img = np.vstack((img, new_base))
-        # features.append(img)
-        # temp = 255 * img
+        curr_video = np.vstack((top_frame, bottom_frame))
+        print(curr_video.shape)
+        break
         write_path = os.path.join(out_path, str(uuid.uuid4())+'_'+str(curr_label)+'.jpg')
-        cv2.imwrite(write_path, img)
+        cv2.imwrite(write_path, curr_video)
         image_list.append(write_path)
-        labels = label_temp.copy()
+        # labels = label_temp.copy()
 
     dataframe = pd.DataFrame({'path ': image_list})
-    dataframe.to_csv("./"+mode+'_images.csv', index=False)
+    dataframe.to_csv("./csv_data_read"+mode+'_images.csv', index=False)
 
-    # pickle.dump(features, open(os.path.join(out_path, 'big_'+mode+'.p'), 'wb'))
     print('Done Generating for ', mode)
 
-pickle_path = '/home/hashmi/Desktop/activity_recognition/transformer_activity/pickles'
-out_path = './'
+pickle_path = '/home/ahmed/Desktop/dataset_skeleton/cross_subject_data'
+out_path = '/home/ahmed/Desktop/dataset_skeleton'
 
 augment(pickle_path, out_path, mode='test')
-# labels = pickle.load(open(pickle_path + "/test_lab.p", "rb"))
-# temp = []
-#
-# for j in labels:
-#     temp.append(np.argmax(j))
-#
-# print(temp)
-# pickle.dump(temp, open('labels_proper_test.p', 'wb'))
