@@ -1,11 +1,35 @@
+import os
 import re
 import torch
 import pickle
 import numpy as np
 import pandas as pd
-from torch.utils.data import Dataset, DataLoader
-import os
 from ntu_preprocess import *
+from torch.utils.data import Dataset, DataLoader
+
+class SimpleDataset(Dataset):
+    """Skeletons dataset."""
+
+    def __init__(self, path, train=True):
+
+        if train:
+            self.features = pickle.load(open(os.path.join(path, 'train_features.p'), 'rb'))
+            self.labels = pickle.load(open(os.path.join(path, 'lab.p'), 'rb'))
+        else:
+            self.features = pickle.load(open(os.path.join(path, 'test_features.p'), 'rb'))
+            self.labels = pickle.load(open(os.path.join(path, 'test_lab.p'), 'rb'))
+        
+    def __len__(self):
+        return self.features.shape[0]
+
+    def __getitem__(self, idx):
+
+        data_source = self.features[idx]# [np.newaxis, :]
+        in_f = torch.tensor(data_source, dtype=torch.float)
+        labels = torch.tensor([np.argmax(self.labels[idx])], dtype=torch.long)
+
+        return in_f, labels
+
 
 class SkeletonsDataset(Dataset):
     """Skeletons dataset."""
@@ -86,7 +110,6 @@ class SkeletonsDataset(Dataset):
         # return self.chunk_size
         return len(self.input_features)
 
-
     def __getitem__(self, idx):
 
         data_source = self.input_features[idx]
@@ -98,7 +121,6 @@ class SkeletonsDataset(Dataset):
             inputs[:data_source.shape[0], :] = np.copy(data_source)
             data_source = inputs.reshape((50, 25, 3))
             assert data_source.shape == (50,25,3), print('wrong dimension image created')
-            
             if self.print_once:
                 print('Data shape {}'.format(data_source.shape))
                 self.print_once=False
@@ -108,10 +130,6 @@ class SkeletonsDataset(Dataset):
         train_data_source = torch.tensor(data_source, dtype=torch.float)
         train_data_source = train_data_source.permute(2, 0, 1) if self.image_dataset else train_data_source
         temp_labels = []
-
         temp_labels.append(np.argmax(self.labels[idx]))
-
         labels = torch.tensor(temp_labels, dtype=torch.long)
-
-
         return train_data_source, labels

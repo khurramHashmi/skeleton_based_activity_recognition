@@ -264,13 +264,13 @@ class VideoAutoEnoder_sep(nn.Module):
 
 class classification_nn(nn.Module):
 
-    def __init__(self, num_feature, num_class, batch_size):
+    def __init__(self, num_feature, num_class):
         super(classification_nn, self).__init__()
 
-        self.layer_1 = nn.Linear(num_feature, 512)
-        self.layer_2 = nn.Linear(512, 256)
-        self.layer_3 = nn.Linear(256, 128)
-        self.layer_3 = nn.Linear(128, 64)
+        self.layer_1 = nn.Linear(num_feature, 128)
+        # self.layer_2 = nn.Linear(512, 256)
+        # self.layer_3 = nn.Linear(256, 128)
+        self.layer_4 = nn.Linear(128, 64)
         self.layer_out = nn.Linear(64, num_class)
 
         #self.relu = nn.ReLU()
@@ -281,24 +281,22 @@ class classification_nn(nn.Module):
         self.bn3 = nn.BatchNorm1d(128)
         self.bn4 = nn.BatchNorm1d(64)
 
-        self.batch_size = batch_size
-
     def forward(self, x):
 
         x = self.layer_1(x)
-        x = self.bn1(x)
-        x = self.tanh(x)
-        x = self.dropout(x)
-
-        x = self.layer_2(x)
-        x = self.bn2(x)
-        x = self.tanh(x)
-        x = self.dropout(x)
-
-        x = self.layer_3(x)
         x = self.bn3(x)
         x = self.tanh(x)
         x = self.dropout(x)
+
+        # x = self.layer_2(x)
+        # x = self.bn2(x)
+        # x = self.tanh(x)
+        # x = self.dropout(x)
+        #
+        # x = self.layer_3(x)
+        # x = self.bn3(x)
+        # x = self.tanh(x)
+        # x = self.dropout(x)
 
         x = self.layer_4(x)
         x = self.bn4(x)

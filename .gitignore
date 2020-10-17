@@ -1,5 +1,6 @@
 .nfs000000006838d88500000eba
 *.nfs
+*.p
 *.pickle
 *.csv
 *.tsv
