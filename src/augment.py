@@ -46,28 +46,28 @@ def augment(pickle_path, out_path, mode='train'):
         os.mkdir(out_path)
 
     if mode == 'train':
-        input_features = pickle.load(open(pickle_path + "/trans_train_data.pkl", "rb"))
+        input_features = pickle.load(open(pickle_path + "/dsamp_train.p", "rb"))
+        labels = pickle.load(open(pickle_path + "/labels_proper_train.p", "rb"))
 
     else:
-        input_features = pickle.load(open(pickle_path + "/trans_train_data.pkl", "rb"))
+        input_features = pickle.load(open(pickle_path + "/dsamp_test.p", "rb"))
+        labels = pickle.load(open(pickle_path + "/labels_proper_test.p", "rb"))
 
     # label_temp = labels.copy()
     image_list = []
-    angle_combinations = [(0, 45), (30, 30), (90, 0), (45, 90), (120, 120), (45, 45), (15, 15), (45, 0), (90, 90)]
+    angle_combinations = [(0,45 ), (30, 30), (90, 0), (45, 90), (120, 120), (45, 45), (15, 15), (45,0), (90,90)]
 
     for i in tqdm.tqdm(range(len(input_features))):
 
-        curr_example = np.array(input_features[i]['input'])
-        print(curr_example.shape)
-        if curr_example.shape[0] < 50:
+        if input_features[i].shape[0] < 50:
             inputs = np.zeros((50, 75), dtype=float)
-            inputs[:curr_example.shape[0], :] = np.copy(curr_example)
+            inputs[:input_features[i].shape[0], :] = np.copy(input_features[i])
             video = inputs
         else:
-            video = curr_example
+            video = input_features[i]
 
         video = np.reshape(video, (50, 25, 3))
-        curr_label = input_features[i]['label']
+        curr_label = labels[i]
         # labels.pop(i)
         # indices = [i for i, x in enumerate(labels) if x == curr_label]
         top_frame = None
@@ -77,8 +77,8 @@ def augment(pickle_path, out_path, mode='train'):
 
             # apply rotation in pairs
             aug_img = rotation(video, angle_combinations[count])
-            if count < 3:
-                top_frame = aug_img if top_frame is None else np.hstack((top_frame, aug_img))
+            if count < 4:
+                top_frame = np.hstack((video, aug_img)) if top_frame is None else np.hstack((top_frame, aug_img))
             else:
                 bottom_frame = aug_img if bottom_frame is None else np.hstack((bottom_frame, aug_img))
             # idx = random.sample(indices, 1)[0]
@@ -95,19 +95,19 @@ def augment(pickle_path, out_path, mode='train'):
             #     new_base = corresponding_ex if new_base is None else np.hstack((new_base, corresponding_ex))
 
         curr_video = np.vstack((top_frame, bottom_frame))
-        print(curr_video.shape)
-        break
+        curr_video = np.vstack((np.zeros((12, curr_video.shape[1], video.shape[2])), curr_video))
+        curr_video = np.vstack((curr_video, np.zeros((13, curr_video.shape[1], video.shape[2]))))
         write_path = os.path.join(out_path, str(uuid.uuid4())+'_'+str(curr_label)+'.jpg')
         cv2.imwrite(write_path, curr_video)
         image_list.append(write_path)
         # labels = label_temp.copy()
 
     dataframe = pd.DataFrame({'path ': image_list})
-    dataframe.to_csv("./csv_data_read"+mode+'_images.csv', index=False)
+    dataframe.to_csv("./csv_data_read/"+mode+'_images.csv', index=False)
 
     print('Done Generating for ', mode)
 
 pickle_path = '/home/ahmed/Desktop/dataset_skeleton/cross_subject_data'
 out_path = '/home/ahmed/Desktop/dataset_skeleton'
 
-augment(pickle_path, out_path, mode='test')
+augment(pickle_path, out_path, mode='train')

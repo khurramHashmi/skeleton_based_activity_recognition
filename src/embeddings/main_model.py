@@ -33,7 +33,6 @@ class resnet50_train(nn.Module):
     def forward(self, x):
         return self.model(x)
 
-
 class resnet18_train(nn.Module):
 
     def __init__(self, n_classes=60):
@@ -43,7 +42,6 @@ class resnet18_train(nn.Module):
         self.model.relu = nn.LeakyReLU(0.1)
         self.model.fc = nn.Linear(num_ftrs, n_classes)
 
-        self.model.layer1[0]
     def forward(self, x):
         return self.model(x)
 

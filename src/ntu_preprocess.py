@@ -68,7 +68,7 @@ def normalize_video(video):
     # video = video.reshape((50,25,3))
     # means = np.mean(video, axis=tuple(range(video.ndim-1)))
     # stddev = np.std(video, axis=tuple(range(video.ndim-1)))
-
+    video = video.reshape((video.shape[0], 25, 3))
     center_joint = video[:, 0, :]
 
     center_jointx = np.mean(center_joint[:, 0])
@@ -77,7 +77,7 @@ def normalize_video(video):
 
     center = np.array([center_jointx, center_jointy, center_jointz])
     video = video - center
-
+    video = video.reshape((video.shape[0], 75))
     return video
 
 def downsample(data, target_frame=50):
@@ -232,9 +232,18 @@ def data_for_classification(data, dsamp_data):
 
 
 if __name__ == "__main__":
-    base_path = "/home/hashmi/Desktop/dataset/NTURGBD-60_120/ntu_60" #"/home/neuralnet/NW_UCLA/" #
+    base_path = "/home/ahmed/Desktop/dataset_skeleton" #"/home/neuralnet/NW_UCLA/" #
     tr_path = "trans_train_data.pkl"
     te_path = "trans_test_data.pkl"
     dsamp_train, dsamp_test, fea, lab, seq_len_new,\
     te_fea, te_lab, te_seq_len_new = preprocess_pipeline(base_path, tr_path, te_path, mode="cross_subject_data", dsamp_frame=50)
-    encoder_inputs, decoder_inputs, seq_len_enc = mini_batch(data=dsamp_train, seq_len=75, input_size=75, batch_size=32)
+    # encoder_inputs, decoder_inputs, seq_len_enc = mini_batch(data=dsamp_train, seq_len=75, input_size=75, batch_size=32)
+    pickle_path = "/home/ahmed/Desktop/dataset_skeleton/cross_subject_data"
+    pickle.dump(dsamp_train, open(pickle_path + "/dsamp_train.p", "wb"))
+    pickle.dump(dsamp_test, open(pickle_path + "/dsamp_test.p", "wb"))
+    pickle.dump(fea, open(pickle_path + "/fea.p", "wb"))
+    pickle.dump(lab, open(pickle_path + "/lab.p", "wb"))
+    pickle.dump(seq_len_new, open(pickle_path + "/seq_len_new.p", "wb"))
+    pickle.dump(te_fea, open(pickle_path + "/te_fea.p", "wb"))
+    pickle.dump(te_lab, open(pickle_path + "/te_lab.p", "wb"))
+    pickle.dump(te_seq_len_new, open(pickle_path + "/te_seq_len_new.p", "wb"))

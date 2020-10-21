@@ -9,13 +9,13 @@ import torch.nn as nn
 from torch.utils.data import DataLoader
 from data_source_reader_video import SkeletonsDataset, SimpleDataset
 from torch.optim.lr_scheduler import ReduceLROnPlateau
-# from resnet_models import resnet18
 from embeddings.main_model import *
 from ntu_preprocess import *
 import cv2
 import pickle
-# env vairables
-#os.environ["WANDB_MODE"] = "dryrun"
+import sys
+
+# os.environ["WANDB_MODE"] = "dryrun"
 os.environ["WANDB_API_KEY"] = "cbf5ed4387d24dbdda68d6de22de808c592f792e"
 os.environ["WANDB_ENTITY"] = "khurram"
 
@@ -46,7 +46,7 @@ def train():
         data = data.to(device)
         targets = targets.to(device)
         targets = targets.view(-1)
-        # skel_data = data
+         # skel_data = data
         # skel_data = data
         optimizer.zero_grad()
 
@@ -168,9 +168,9 @@ parser = argparse.ArgumentParser(description="Skeleton Classification Training S
 parser.add_argument("-lr", "--learning_rate", default=0.001, type=float, help="Learning rate of model. Default 5.0")
 parser.add_argument("-b", "--batch_size", default=100, type=int, help="Batch Size for training")
 parser.add_argument("-eb", "--eval_batch_size", default=100, type=int, help="Batch Size for evaluation")
-parser.add_argument("-tr_d", "--train_data", default='./csv_data_read/xsub_train_norm_skel_float.csv',
+parser.add_argument("-tr_d", "--train_data", default='./csv_data_read/train_images.csv',
                     help='Path to training data')
-parser.add_argument("-ev_d", "--eval_data", default='./csv_data_read/xsub_val_norm_skel_float.csv',
+parser.add_argument("-ev_d", "--eval_data", default='./csv_data_read/test_images.csv',
                     help='Path to eval data')
 parser.add_argument("-ts_d", "--test_data", help='Path to test data')
 parser.add_argument("-e", "--epochs", type=int, default=100, help='Number of epochs to train model for')
@@ -178,7 +178,7 @@ parser.add_argument("-hid_dim", "--nhid", type=int, default=8, help='Number of h
 parser.add_argument("-dropout", "--dropout", type=float, default=0.2, help='Dropout value, default is 0.2')
 parser.add_argument("-t", "--train", help="Put Model in training mode", default=True)
 parser.add_argument("-f", "--frame_count", help="Frame count per video", default=60)
-parser.add_argument("-c", "--checkpoint", help="path to store model weights", default="./logs/autoncoder_classification")
+parser.add_argument("-c", "--checkpoint", help="path to store model weights", default="./logs/resnet18")
 parser.add_argument("-bs", "--batch_shuffle", help="path to store model weights", default=True)
 parser.add_argument("-rc", "--resume_checkpoint", help="path to store model weights",
                     default="./logs/output_2020-09-22 12:37:39.576905/epoch_2020-09-23 06:34:34.803320")
@@ -203,7 +203,7 @@ classes = ["drink water", "eat meal", "brush teeth", "brush hair", "drop", "pick
            "walking towards", "walking apart"]
 
 # initalize wandb
-wandb.init(project="AutoEncoder_Classifer", reinit=True)
+wandb.init(project="CNN_new_data", reinit=True)
 # Set up a specific logger with our desired output level
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -216,10 +216,10 @@ if args.train:
     # train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=args.batch_shuffle, **kwargs)
     # eval_dataset = SkeletonsDataset(base_path, mode='eval', image_dataset=True)
     # eval_loader = DataLoader(eval_dataset, batch_size=args.eval_batch_size, shuffle=args.batch_shuffle, **kwargs)
-    base_path = "autoencoder_features/"  # "/home/neuralnet/NW_UCLA/" #
-    train_dataset = SimpleDataset(base_path)
+    # base_path = "autoencoder_features/"  # "/home/neuralnet/NW_UCLA/" #
+    train_dataset = SkeletonsDataset(args.train_data, image_dataset=True)
     train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=args.batch_shuffle, **kwargs)
-    eval_dataset = SimpleDataset(base_path, train=False)
+    eval_dataset = SkeletonsDataset(args.eval_data, image_dataset=True)
     eval_loader = DataLoader(eval_dataset, batch_size=args.eval_batch_size, shuffle=args.batch_shuffle, **kwargs)
     # '''
     #     Loading all the models here
@@ -230,7 +230,8 @@ if args.train:
     # model = SkeletonAutoEnoder().to(device)
     # model = VideoAutoEnoder_sep(batch_size=args.batch_size).to(device)
     # model = skeleton_lstm(n_features=150).to(device)
-    model = classification_nn(num_feature=128, num_class=60).to(device)
+    # model = classification_nn(num_feature=128, num_class=60).to(device)
+    model = resnet18_train().to(device)
     skel_criterion = nn.CrossEntropyLoss()  # nn.MSELoss(reduction='sum')
 
     # video_criterion = nn.MSELoss(reduction='sum')
