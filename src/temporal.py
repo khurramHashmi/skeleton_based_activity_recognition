@@ -6,6 +6,7 @@ import random
 import numpy as np
 from tqdm import tqdm
 from multiprocessing import Pool
+import argparse
 
 SPIXEL = 5
 SPATIAL_DIM = 36
@@ -113,22 +114,52 @@ def gen(datafiles, process_name, savePath):
 
 if __name__ == '__main__':
 
-    datafiles = pickle.load(open('/home/ahmed/Desktop/dataset_skeleton/cross_subject_data/trans_train_data.pkl', 'rb'))
-    print('Total num examples ', len(datafiles))  # 40091
+    parser = argparse.ArgumentParser(description="Skeleton Classification Training Script")
+    parser.add_argument("-m", "--mode", default='train', type=str, help="Train or test mode")
+    args = parser.parse_args()
 
-    savePath = '/home/ahmed/Desktop/dataset_skeleton/temporal_train/'
+    if args.mode == 'train':
 
-    if not os.path.exists(savePath):
-        os.makedirs(savePath)
+        datafiles = pickle.load(
+            open('/home/ahmed/Desktop/dataset_skeleton/cross_subject_data/trans_train_data.pkl', 'rb'))
+        print('Total num examples ', len(datafiles))  # 40091
 
-    pool = Pool(processes=5)
-    start = 0
-    increment = 10000
+        savePath = '/home/ahmed/Desktop/dataset_skeleton/temporal_train/'
 
-    for i in range(5):
-        pool.apply_async(gen, [datafiles[start:start + increment], str(i), savePath])
-        start = start + increment
-        if i == 4:
-            pool.apply_async(gen, [datafiles[start:], str(i), savePath])
-    pool.close()
-    pool.join()
+        if not os.path.exists(savePath):
+            os.makedirs(savePath)
+
+        pool = Pool(processes=5)
+        start = 0
+        increment = 10000
+
+        for i in range(5):
+            pool.apply_async(gen, [datafiles[start:start + increment], str(i), savePath])
+            start = start + increment
+            if i == 4:
+                pool.apply_async(gen, [datafiles[start:], str(i), savePath])
+        pool.close()
+        pool.join()
+
+    else:
+
+        datafiles = pickle.load(
+            open('/home/ahmed/Desktop/dataset_skeleton/cross_subject_data/trans_test_data.pkl', 'rb'))
+        print('Total num examples ', len(datafiles))  # 16000-
+
+        savePath = '/home/ahmed/Desktop/dataset_skeleton/temporal_test/'
+
+        if not os.path.exists(savePath):
+            os.makedirs(savePath)
+
+        pool = Pool(processes=5)
+        start = 0
+        increment = 4000
+
+        for i in range(5):
+            pool.apply_async(gen, [datafiles[start:start + increment], str(i), savePath])
+            start = start + increment
+            if i == 4:
+                pool.apply_async(gen, [datafiles[start:], str(i), savePath])
+        pool.close()
+        pool.join()
