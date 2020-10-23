@@ -7,13 +7,15 @@ from utils import *
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
-from data_source_reader_video import SkeletonsDataset, SimpleDataset
+from data_source_reader_video import SkeletonsDataset, SimpleDataset, FolderDataset
 from torch.optim.lr_scheduler import ReduceLROnPlateau
-from embeddings.main_model import *
+#from embeddings.main_model import *
 from ntu_preprocess import *
 import cv2
 import pickle
 import sys
+from models.resnet_models import resnet18
+from models.inceptionresnet import InceptionResnetV1
 
 # os.environ["WANDB_MODE"] = "dryrun"
 os.environ["WANDB_API_KEY"] = "cbf5ed4387d24dbdda68d6de22de808c592f792e"
@@ -78,10 +80,10 @@ def train():
         # logging interval
         if batch_idx % log_interval == 0 and batch_idx > 0:
             elapsed = time.time() - start_time
-            print('| epoch {:3d} | {:5d}/{:5d} batches | '
+            print('| epoch {:3d} | {:8d}/{:8d} batches | '
                   'lr {:02.4f} | ms/batch {:5.2f} | '
                   'loss {:5.2f} '.format(
-                epoch, batch_idx, len(data), optimizer.param_groups[0]['lr'],
+                epoch, batch_idx, len(train_loader), optimizer.param_groups[0]['lr'],
                 elapsed * 1000 / log_interval, loss.item()))
             start_time = time.time()
 
@@ -168,9 +170,9 @@ parser = argparse.ArgumentParser(description="Skeleton Classification Training S
 parser.add_argument("-lr", "--learning_rate", default=0.001, type=float, help="Learning rate of model. Default 5.0")
 parser.add_argument("-b", "--batch_size", default=100, type=int, help="Batch Size for training")
 parser.add_argument("-eb", "--eval_batch_size", default=100, type=int, help="Batch Size for evaluation")
-parser.add_argument("-tr_d", "--train_data", default='./csv_data_read/train_images.csv',
+parser.add_argument("-tr_d", "--train_data", default='/home/ahmed/Desktop/Skepxel_GitHub/data/NTU/skepxel_images/train',
                     help='Path to training data')
-parser.add_argument("-ev_d", "--eval_data", default='./csv_data_read/test_images.csv',
+parser.add_argument("-ev_d", "--eval_data", default='/home/ahmed/Desktop/Skepxel_GitHub/data/NTU/skepxel_images/test',
                     help='Path to eval data')
 parser.add_argument("-ts_d", "--test_data", help='Path to test data')
 parser.add_argument("-e", "--epochs", type=int, default=100, help='Number of epochs to train model for')
@@ -178,7 +180,7 @@ parser.add_argument("-hid_dim", "--nhid", type=int, default=8, help='Number of h
 parser.add_argument("-dropout", "--dropout", type=float, default=0.2, help='Dropout value, default is 0.2')
 parser.add_argument("-t", "--train", help="Put Model in training mode", default=True)
 parser.add_argument("-f", "--frame_count", help="Frame count per video", default=60)
-parser.add_argument("-c", "--checkpoint", help="path to store model weights", default="./logs/resnet18")
+parser.add_argument("-c", "--checkpoint", help="path to store model weights", default="/home/ahmed/Desktop/model_experiments/inception_resnet")
 parser.add_argument("-bs", "--batch_shuffle", help="path to store model weights", default=True)
 parser.add_argument("-rc", "--resume_checkpoint", help="path to store model weights",
                     default="./logs/output_2020-09-22 12:37:39.576905/epoch_2020-09-23 06:34:34.803320")
@@ -203,11 +205,11 @@ classes = ["drink water", "eat meal", "brush teeth", "brush hair", "drop", "pick
            "walking towards", "walking apart"]
 
 # initalize wandb
-wandb.init(project="CNN_new_data", reinit=True)
+wandb.init(project="Cycle-Gan", reinit=True)
 # Set up a specific logger with our desired output level
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-kwargs = {'num_workers': 1, 'pin_memory': True} if device == 'cuda' else {}
+kwargs = {'num_workers': 2, 'pin_memory': True} if device == 'cuda' else {}
 
 if args.train:
 
@@ -217,11 +219,11 @@ if args.train:
     # eval_dataset = SkeletonsDataset(base_path, mode='eval', image_dataset=True)
     # eval_loader = DataLoader(eval_dataset, batch_size=args.eval_batch_size, shuffle=args.batch_shuffle, **kwargs)
     # base_path = "autoencoder_features/"  # "/home/neuralnet/NW_UCLA/" #
-    train_dataset = SkeletonsDataset(args.train_data, image_dataset=True)
+    train_dataset = FolderDataset(args.train_data)
     train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=args.batch_shuffle, **kwargs)
-    eval_dataset = SkeletonsDataset(args.eval_data, image_dataset=True)
+    eval_dataset = FolderDataset(args.eval_data)
     eval_loader = DataLoader(eval_dataset, batch_size=args.eval_batch_size, shuffle=args.batch_shuffle, **kwargs)
-    # '''
+    # # '''
     #     Loading all the models here
     #     Classification Network
     #     Defining the criterion for losses
@@ -231,13 +233,15 @@ if args.train:
     # model = VideoAutoEnoder_sep(batch_size=args.batch_size).to(device)
     # model = skeleton_lstm(n_features=150).to(device)
     # model = classification_nn(num_feature=128, num_class=60).to(device)
-    model = resnet18_train().to(device)
+    # model = resnet18().to(device)
+    model = InceptionResnetV1(classify=True, num_classes=60).to(device)
+    print(model)
     skel_criterion = nn.CrossEntropyLoss()  # nn.MSELoss(reduction='sum')
 
     # video_criterion = nn.MSELoss(reduction='sum')
     optimizer = torch.optim.Adam(model.parameters(), lr=args.learning_rate)
+        #torch.optim.RMSprop(model.parameters(), lr=args.learning_rate)#
     scheduler = ReduceLROnPlateau(optimizer, 'min', patience=4, min_lr=0.000001)
-    print(model)
 
     best_val_loss = float("inf")
     max_epochs = args.epochs  # number of epochs
