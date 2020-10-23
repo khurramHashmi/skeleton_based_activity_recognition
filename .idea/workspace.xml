@@ -20,10 +20,9 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="f6b16808-7739-4700-bd58-15bcec04c840" name="Default Changelist" comment="">
-      <change beforePath="$PROJECT_DIR$/.idea/misc.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/misc.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/skeleton_based_activity_recognition.iml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/skeleton_based_activity_recognition.iml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/temporal.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/temporal.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/cnn_classification.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/cnn_classification.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/run.sh" beforeDir="false" afterPath="$PROJECT_DIR$/src/run.sh" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />

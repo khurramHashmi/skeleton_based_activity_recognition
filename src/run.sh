@@ -1,4 +1,4 @@
-echo 'Running Training Script'
-python main.py -tr_d /netscratch/m_ahmed/datasets/dataset_skeleton/nturgbd/cross_view/train.tsv \
--ev_d /netscratch/m_ahmed/datasets/dataset_skeleton/nturgbd/cross_view/val.tsv \
--e 100
+echo 'Generating train data'
+python temporal.py --mode train
+echo 'Done Generating for train'
+python temporal.py --mode test

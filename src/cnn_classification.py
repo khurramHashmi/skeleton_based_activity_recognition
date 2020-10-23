@@ -1,319 +1,165 @@
-import time
-import wandb
-import logging
-import datetime
-import argparse
-from utils import *
-import torch
-import torch.nn as nn
-from torch.utils.data import DataLoader
-from data_source_reader_video import SkeletonsDataset, SimpleDataset, FolderDataset
-from torch.optim.lr_scheduler import ReduceLROnPlateau
-#from embeddings.main_model import *
-from ntu_preprocess import *
+import os
 import cv2
+import uuid
 import pickle
-import sys
-from models.resnet_models import resnet18
-from models.inceptionresnet import InceptionResnetV1
+import random
+import numpy as np
+from tqdm import tqdm
+from multiprocessing import Pool
+import argparse
 
-# os.environ["WANDB_MODE"] = "dryrun"
-os.environ["WANDB_API_KEY"] = "cbf5ed4387d24dbdda68d6de22de808c592f792e"
-os.environ["WANDB_ENTITY"] = "khurram"
-
-def train():
-    '''
-        Function for training 1 epoch of network
-        args:
-            -draw_graph: argument for whether to draw graph displaying number of frames in each example or not of a single batch
-        returns:
-            -current loss value
-            -training accuracy
-    '''
-
-    class_correct = list(0. for i in range(60))
-    class_total = list(0. for i in range(60))
-
-    model.train()  # Turn on the train mode
-    total_loss = []
-    start_time = time.time()
-    sum_curl_loss = 0
-    batch_count = 0
-    log_interval = 500
-    sum_skel_loss = []
-    sum_video_loss = []
-
-    for batch_idx, (data, targets) in enumerate(train_loader):
-
-        data = data.to(device)
-        targets = targets.to(device)
-        targets = targets.view(-1)
-         # skel_data = data
-        # skel_data = data
-        optimizer.zero_grad()
-
-        # skel_decoded, video_decoded = model(data)
-        skel_decoded = model(data)
-        loss = skel_criterion(skel_decoded, targets)
-
-        # Calculating accuracies
-        _, predicted = torch.max(skel_decoded.view(-1, len(classes)), 1)
-        c = (predicted == targets).squeeze()
-
-        for i in range(targets.shape[0]):
-            label = targets[i]
-            class_correct[label] += c[i].item()
-            class_total[label] = class_total[label] + 1
+SPIXEL = 5
+SPATIAL_DIM = 36
+TEMPORAL_DIM = 36
+STRIDE = 1  # decide how many pseudo images to be created
+SKIP = 1  # decide how dense/sparse the skeleton frames are sampled, to build one pseudo image
 
 
-        # video_loss = video_criterion(video_decoded, skel_data)
-        # sum_skel_loss.append(skel_loss.item())
-        # sum_video_loss.append(video_loss.item())
-        # loss = skel_loss #+ video_loss
-        loss.backward()
-
-        torch.nn.utils.clip_grad_norm_(model.parameters(), 0.5)
-        optimizer.step()
-        total_loss.append(loss.item())
-        # sum_curl_loss += loss.item()
-
-        # logging interval
-        if batch_idx % log_interval == 0 and batch_idx > 0:
-            elapsed = time.time() - start_time
-            print('| epoch {:3d} | {:8d}/{:8d} batches | '
-                  'lr {:02.4f} | ms/batch {:5.2f} | '
-                  'loss {:5.2f} '.format(
-                epoch, batch_idx, len(train_loader), optimizer.param_groups[0]['lr'],
-                elapsed * 1000 / log_interval, loss.item()))
-            start_time = time.time()
-
-        # wandb.sklearn.plot_confusion_matrix(targets.cpu().numpy().squeeze(), predicted.cpu().numpy(), labels=classes)
-
-    # print(" Mean Skel LOSS : {} and STD DEV : {}".format(np.mean(sum_skel_loss), np.std(sum_skel_loss)))
-    # print(" Mean Video LOSS : {} and STD DEV : {}".format(np.mean(sum_video_loss), np.std(sum_video_loss)))
-    epoch_loss = np.sum(total_loss) / len(train_loader)
-
-    print('TRAINING Accuracies now !')
-    print('=' * 89)
-    acc = calculate_accuracy(class_correct,class_total)
-    print('=' * 89)
-    return epoch_loss, acc
-    # write_to_graph('train/loss', sum_curl_loss/len(train_loader), writer, step_count_tb)
+def sort_nicely(l):
+    convert = lambda text: int(text) if text.isdigit() else text
+    alphanum_key = lambda key: [convert(c) for c in re.split('([0-9]+)', key)]
+    l.sort(key=alphanum_key)
 
 
+def skel_interpolate(skel_norm):
+    fm_num = skel_norm.shape[2]
+    skel_dim = skel_norm.shape[0]
+    intep_skel = np.zeros([skel_dim, 3, fm_num * 2 - 1])
+    for ix in range(fm_num * 2 - 1):
+        if ix % 2 == 0:
+            intep_skel[:, :, ix] = skel_norm[:, :, int(ix / 2)]
+        else:
+            intep_skel[:, :, ix] = (skel_norm[:, :, int(ix / 2)] + skel_norm[:, :, int(ix / 2) + 1]) / 2
+    return intep_skel
 
-def evaluate(eval_model, eval_loader):
-    '''
-        Function to evaluate model performance
-        args:
-            -eval_model: model to be used for evaluation purposes
-            -eval_loader: data loader for data loading
-        returns:
-            Loss and accuracy for given dataset
-    '''
 
-    class_correct = list(0. for i in range(60))
-    class_total = list(0. for i in range(60))
+def get_order(random_seed):
+    random.seed(random_seed)
+    joints_order = np.reshape(random.sample(range(25), 25), (5, 5))
+    return joints_order
 
-    eval_model.eval()  # Turn on the evaluation mode
-    total_loss = []
 
-    with torch.no_grad():
-        for data, targets in eval_loader:
-            data = data.to(device)  # 100, 75, 150
-            # skel_data = data#.view(75 * batch_size, 150) # 7500, 150
-            # data = data.reshape((100,1,11250))
-            optimizer.zero_grad()
-            # skel_decoded, video_decoded = model(data)
-            skel_decoded = model(data)
-            # calculate all the losses and perform backprop
-            targets = targets.to(device)
-            targets = targets.view(-1)
-            loss = skel_criterion(skel_decoded, targets)
-            #            video_loss = video_criterion(video_decoded, skel_data)
-            # loss = skel_loss #+ video_loss
-            total_loss.append(loss.item())
+def create_img(skel_norm, img_ix):
+    spatial_arr = None
+    spatial_arr_diff = None
 
-            # Calculating accuracies code starts here
-            _, predicted = torch.max(skel_decoded.view(-1, len(classes)), 1)
-            c = (predicted == targets).squeeze()
+    for order_ix in range(SPATIAL_DIM):
 
-            for i in range(targets.shape[0]):
-                label = targets[i]
-                class_correct[label] += c[i].item()
-                class_total[label] = class_total[label] + 1
-            # Calculating accuracies code ends here
+        joints_order = get_order(order_ix)
+        temporal_arr = None
+        temporal_arr_diff = None
 
-    print('TEST Accuracies now !')
-    print('=' * 89)
-    val_acc = calculate_accuracy(class_correct, class_total)
+        for frame_ix in range(TEMPORAL_DIM):
 
-    return np.sum(total_loss) / len(eval_loader), val_acc
+            current_frame = skel_norm[:, :, (img_ix * STRIDE + frame_ix * SKIP)]
+            temporal_arr = current_frame[joints_order] if temporal_arr is None else np.vstack(
+                (temporal_arr, current_frame[joints_order]))
 
-def calculate_accuracy(class_correct, class_total):
-    acc_sum = 0
-    for i in range(len(classes)):
-        print(class_total[i])
-        class_accuracy = 100 * class_correct[i] / class_total[i]
-        # error_rate = 100 - class_accuracy
-        acc_sum += class_accuracy
-        print('%d Accuracy of %5s : %2d %% and total count : %2d ' % (i, classes[i], class_accuracy, class_total[i]))
-    print('=' * 89)
-    print('Mean Average Accuracy of Camera View : %2f %%' % (acc_sum / 60))
-    print('=' * 89)
+            if frame_ix != TEMPORAL_DIM - 1:
+                next_frame = skel_norm[:, :, (img_ix * STRIDE + (frame_ix + 1) * SKIP)]
+                diff = current_frame[joints_order] - next_frame[joints_order]
+            else:
+                diff = np.reshape(current_frame, (5, 5, 3))
 
-    return acc_sum / len(classes)  # , error_rate
-    # write_to_graph(split+'/Accuracy', acc_sum/60, writer, epoch)
+            temporal_arr_diff = diff if temporal_arr_diff is None else np.hstack((temporal_arr_diff, diff))
 
-# training arguments
-parser = argparse.ArgumentParser(description="Skeleton Classification Training Script")
-parser.add_argument("-lr", "--learning_rate", default=0.001, type=float, help="Learning rate of model. Default 5.0")
-parser.add_argument("-b", "--batch_size", default=100, type=int, help="Batch Size for training")
-parser.add_argument("-eb", "--eval_batch_size", default=100, type=int, help="Batch Size for evaluation")
-parser.add_argument("-tr_d", "--train_data", default='/home/ahmed/Desktop/Skepxel_GitHub/data/NTU/skepxel_images/train',
-                    help='Path to training data')
-parser.add_argument("-ev_d", "--eval_data", default='/home/ahmed/Desktop/Skepxel_GitHub/data/NTU/skepxel_images/test',
-                    help='Path to eval data')
-parser.add_argument("-ts_d", "--test_data", help='Path to test data')
-parser.add_argument("-e", "--epochs", type=int, default=100, help='Number of epochs to train model for')
-parser.add_argument("-hid_dim", "--nhid", type=int, default=8, help='Number of hidden dimenstions, default is 100')
-parser.add_argument("-dropout", "--dropout", type=float, default=0.2, help='Dropout value, default is 0.2')
-parser.add_argument("-t", "--train", help="Put Model in training mode", default=True)
-parser.add_argument("-f", "--frame_count", help="Frame count per video", default=60)
-parser.add_argument("-c", "--checkpoint", help="path to store model weights", default="/home/ahmed/Desktop/model_experiments/inception_resnet")
-parser.add_argument("-bs", "--batch_shuffle", help="path to store model weights", default=True)
-parser.add_argument("-rc", "--resume_checkpoint", help="path to store model weights",
-                    default="./logs/output_2020-09-22 12:37:39.576905/epoch_2020-09-23 06:34:34.803320")
-parser.add_argument("-r", "--resume_bool", default=False, help='Whether to resume training or start from scratch')
-parser.add_argument("-ac", "--ae_checkpoint", help="path to load autoencoder from",
-                    default="./autoencoder_weights/subject_video_ae_int_rgb.pth")
+        spatial_arr = temporal_arr if spatial_arr is None else np.hstack((spatial_arr, temporal_arr))
+        spatial_arr_diff = temporal_arr_diff if spatial_arr_diff is None else np.vstack(
+            (spatial_arr_diff, temporal_arr_diff))
 
-args = parser.parse_args()
+    return spatial_arr, spatial_arr_diff
 
-classes = ["drink water", "eat meal", "brush teeth", "brush hair", "drop", "pick up", "throw", "sit down", "stand up",
-           "clapping", "reading", "writing"
-    , "tear up paper", "put on jacket", "take off jacket", "put on a shoe", "take off a shoe", "put on glasses",
-           "take off glasses", "put on a hat/cap",
-           "take off a hat/cap", "cheer up", "hand waving", "kicking something", "reach into pocket", "hopping",
-           "jump up", "phone call", "play with phone/tablet",
-           "type on a keyboard", "point to something", "taking a selfie", "check time (from watch)", "rub two hands",
-           "nod head/bow", "shake head", "wipe face",
-           "salute", "put palms together", "cross hands in front", "sneeze/cough", "staggering", "falling down",
-           "headache", "chest pain", "back pain", "neck pain",
-           "nausea/vomiting", "fan self", "punch/slap", "kicking", "pushing", "pat on back", "point finger", "hugging",
-           "giving object", "touch pocket", "shaking hands",
-           "walking towards", "walking apart"]
 
-# initalize wandb
-wandb.init(project="Cycle-Gan", reinit=True)
-# Set up a specific logger with our desired output level
+def gen(datafiles, process_name, savePath):
+    print('process {} handling total {} files'.format(process_name, len(datafiles)))
 
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-kwargs = {'num_workers': 2, 'pin_memory': True} if device == 'cuda' else {}
+    for count in tqdm(range(len(datafiles))):
 
-if args.train:
+        skel_norm = datafiles[count]
+        skel_norm_data = np.array(skel_norm['input'])
+        skel_norm_data = np.reshape(skel_norm_data, (25, 3, skel_norm_data.shape[0]))
 
-    # base_path = "/home/hashmi/Desktop/dataset/NTURGBD-60_120/ntu_60"  # "/home/neuralnet/NW_UCLA/" #
-    # train_dataset = SkeletonsDataset(base_path, image_dataset=True)
-    # train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=args.batch_shuffle, **kwargs)
-    # eval_dataset = SkeletonsDataset(base_path, mode='eval', image_dataset=True)
-    # eval_loader = DataLoader(eval_dataset, batch_size=args.eval_batch_size, shuffle=args.batch_shuffle, **kwargs)
-    # base_path = "autoencoder_features/"  # "/home/neuralnet/NW_UCLA/" #
-    train_dataset = FolderDataset(args.train_data)
-    train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=args.batch_shuffle, **kwargs)
-    eval_dataset = FolderDataset(args.eval_data)
-    eval_loader = DataLoader(eval_dataset, batch_size=args.eval_batch_size, shuffle=args.batch_shuffle, **kwargs)
-    # # '''
-    #     Loading all the models here
-    #     Classification Network
-    #     Defining the criterion for losses
-    # '''
-    # model = UnsuperVisedAE(batch_size=args.batch_size).to(device)
-    # model = SkeletonAutoEnoder().to(device)
-    # model = VideoAutoEnoder_sep(batch_size=args.batch_size).to(device)
-    # model = skeleton_lstm(n_features=150).to(device)
-    # model = classification_nn(num_feature=128, num_class=60).to(device)
-    # model = resnet18().to(device)
-    model = InceptionResnetV1(classify=True, num_classes=60).to(device)
-    print(model)
-    skel_criterion = nn.CrossEntropyLoss()  # nn.MSELoss(reduction='sum')
+        ac_id = str(skel_norm['label'])
 
-    # video_criterion = nn.MSELoss(reduction='sum')
-    optimizer = torch.optim.Adam(model.parameters(), lr=args.learning_rate)
-        #torch.optim.RMSprop(model.parameters(), lr=args.learning_rate)#
-    scheduler = ReduceLROnPlateau(optimizer, 'min', patience=4, min_lr=0.000001)
+        fm_num = skel_norm_data.shape[2]
 
-    best_val_loss = float("inf")
-    max_epochs = args.epochs  # number of epochs
-    step_count_tb = 1  # xaxis for calculating loss value for tensorboard
+        if fm_num < TEMPORAL_DIM:
+            skel_norm_data = skel_interpolate(skel_norm_data)
+            fm_num = skel_norm_data.shape[2]
+            if fm_num < TEMPORAL_DIM:
+                skel_norm_data = skel_interpolate(skel_norm_data)
+                fm_num = skel_norm_data.shape[2]
 
-    # Saving and writing model as a state_dict
-    # Training procedure starts
-    current_date_time = str(datetime.datetime.now()).split(",")[0]
-    create_dir(args.checkpoint)
-    output_path = os.path.join(args.checkpoint, "output_" + str(current_date_time))
-    create_dir(output_path)  # creating the directory where epochs will be saved
-    # skeleton_output = os.path.join(output_path, 'skeleton_diagrams')
+        img_num = int((fm_num - TEMPORAL_DIM * SKIP) / STRIDE + 1)
 
-    '''
-    Resuming from the specific check point
-    '''
-    if args.resume_bool:
-        # Resuming the model from the specific checkpoint
-        checkpoint = torch.load(args.resume_checkpoint)
-        model.load_state_dict(checkpoint['model_state_dict'])
+        for img_ix in range(img_num):
+            skel_arr, velocity_arr = create_img(skel_norm_data, img_ix)
+            skel_img = cv2.normalize(skel_arr, skel_arr, 0, 1, cv2.NORM_MINMAX)
+            skel_img = np.array(skel_img * 255, dtype=np.uint8)
 
-    lr_change_count = 0
-    epoch_output_path = output_path + "/epoch_" + str(current_date_time)
-    for epoch in range(0, max_epochs):
+            velocity_img = cv2.normalize(velocity_arr, velocity_arr, 0, 1, cv2.NORM_MINMAX)
+            velocity_img = np.array(velocity_img * 255, dtype=np.uint8)
 
-        epoch_start_time = time.time()
-        current_date_time = str(datetime.datetime.now()).split(",")[0]
+            save_file = savePath + '/' + str(uuid.uuid4()) + '_{}'.format(ac_id) + '.p'
+            final_img = np.concatenate((skel_img, velocity_img), axis=2)
+            pickle.dump(final_img, open(save_file, 'wb'))
 
-        tr_loss, tr_acc = train()
-        print('| end of epoch {:3d} | time: {:5.2f}s | Train loss {:5.4f} | '.format(epoch,
-                                                                                     (time.time() - epoch_start_time),
-                                                                                     tr_loss))
-        logging.info('| end of epoch {:3d} | time: {:5.2f}s | Train loss {:5.4f} | '.format(epoch, (
-                    time.time() - epoch_start_time), tr_loss))
+        # if count % 2000 == 0:
+        #     print('Process {} done with {} files'.format(process_name, count))
+        # print(final_img.shape)
 
-        val_loss, val_acc = evaluate(model, eval_loader)
-        scheduler.step(val_loss)
 
-        wandb.log({"train_loss": tr_loss, "train_accuracy":tr_acc, "test_loss": val_loss,
-                   "learing_rate": optimizer.param_groups[0]['lr'], "test_accuracy":val_acc})
-        print('-' * 89)
-        print('| end of epoch {:3d} | time: {:5.2f}s | valid loss {:5.4f} | valid acc {:5.4f} | '.format(epoch,
-                                                                                     (time.time() - epoch_start_time),
-                                                                                     val_loss, val_acc))
-        logging.info('| end of epoch {:3d} | time: {:5.2f}s | valid loss {:5.4f} | '.format(epoch, (
-                    time.time() - epoch_start_time), val_loss))
-        print('-' * 89)
-        # write_to_graph('Val/loss', val_loss, writer, epoch)
-        if val_loss < best_val_loss:
-            best_val_loss = val_loss
-            best_model = model
-            best_epoch = epoch
-            torch.save({
-                'epoch': epoch,
-                'model_state_dict': best_model.state_dict(),
-                'optimizer_state_dict': optimizer.state_dict(),
-                'loss': best_val_loss
-            }, epoch_output_path)
+#            imageio.imwrite(save_file, diff_img)
 
-# else:
-#
-#     test_dataset = SkeletonsDataset(args.test_data, args.batch_size)
-#     test_loader = DataLoader(test_dataset, batch_size=args.batch_size, shuffle=False, **kwargs)
-#     # loading the model again to evaluate for the test set.
-#     checkpoint = torch.load(args.checkpoint)
-#     model = TransformerModel(ntokens, emsize, nhead, nhid, nlayers, dropout).to(device)
-#     model.load_state_dict(checkpoint['model_state_dict'])
-#     optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
-#     epoch = checkpoint['epoch']
-#     loss = checkpoint['loss']
-#     test_loss, test_acc = evaluate(model, test_loader, draw_img=True, visualize=False, out_path='./visual')
-#     print('=' * 89)
-#     print('| End of testing | test loss {:5.2f} | test ppl {:8.2f} | test acc {:8.2f}'.format(
-#         test_loss, math.exp(test_loss), test_acc))
-#     print('=' * 89)
+
+if __name__ == '__main__':
+
+    parser = argparse.ArgumentParser(description="Skeleton Classification Training Script")
+    parser.add_argument("-m", "--mode", default='train', type=str, help="Train or test mode")
+    args = parser.parse_args()
+
+    if args.mode == 'train':
+
+        datafiles = pickle.load(
+            open('/home/ahmed/Desktop/dataset_skeleton/cross_subject_data/trans_train_data.pkl', 'rb'))
+        print('Total num examples ', len(datafiles))  # 40091
+
+        savePath = '/home/ahmed/Desktop/dataset_skeleton/temporal_train/'
+
+        if not os.path.exists(savePath):
+            os.makedirs(savePath)
+
+        pool = Pool(processes=5)
+        start = 0
+        increment = 10000
+
+        for i in range(5):
+            pool.apply_async(gen, [datafiles[start:start + increment], str(i), savePath])
+            start = start + increment
+            if i == 4:
+                pool.apply_async(gen, [datafiles[start:], str(i), savePath])
+        pool.close()
+        pool.join()
+
+    else:
+
+        datafiles = pickle.load(
+            open('/home/ahmed/Desktop/dataset_skeleton/cross_subject_data/trans_test_data.pkl', 'rb'))
+        print('Total num examples ', len(datafiles))  # 16000-
+
+        savePath = '/home/ahmed/Desktop/dataset_skeleton/temporal_test/'
+
+        if not os.path.exists(savePath):
+            os.makedirs(savePath)
+
+        pool = Pool(processes=5)
+        start = 0
+        increment = 4000
+
+        for i in range(5):
+            pool.apply_async(gen, [datafiles[start:start + increment], str(i), savePath])
+            start = start + increment
+            if i == 4:
+                pool.apply_async(gen, [datafiles[start:], str(i), savePath])
+        pool.close()
+        pool.join()
