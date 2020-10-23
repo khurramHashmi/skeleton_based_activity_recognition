@@ -1,12 +1,10 @@
 import os
 import cv2
-import glob
 import uuid
 import pickle
 import random
 import numpy as np
 from tqdm import tqdm
-import scipy.io as sio
 from multiprocessing import Pool
 
 SPIXEL = 5
@@ -34,127 +32,106 @@ def skel_interpolate(skel_norm):
   return intep_skel
 
 
-def velocity(video):
+def get_order(random_seed):
 
-    diff = np.zeros(video.shape)
-    for idx in range(video.shape[2]):
-
-        if idx != video.shape[2] - 1:
-            diff[:, :, idx] = video[:, :, idx] - video[:, :, idx+1]
-        else:
-            diff[:, :, idx] = diff[:, :, idx-1]
-
-    return diff
-
-def super_pixel(skel_frame, random_seed, next_frame, compute_diff=True):
-
-  random.seed(random_seed)
-  joints_order = np.reshape(random.sample(range(25), 25),(5,5))
-  skel_spixel = skel_frame[joints_order]
-  skel_spixel2 = next_frame[joints_order]
-  diff = np.abs(skel_spixel - skel_spixel2)
-
-  return skel_spixel, diff
+    random.seed(random_seed)
+    joints_order = np.reshape(random.sample(range(25), 25),(5,5))
+    return joints_order
 
 
 def create_img(skel_norm, img_ix):
 
-    # print(img_num)
-    skel_arr = np.zeros((SPATIAL_DIM * SPIXEL, TEMPORAL_DIM * SPIXEL, 3), dtype=float)
-    diff_arr = np.zeros((SPATIAL_DIM * SPIXEL, TEMPORAL_DIM * SPIXEL, 3), dtype=float)
-    compute_diff = True
+    spatial_arr = None
+    spatial_arr_diff = None
 
-    for frame_ix in range(TEMPORAL_DIM):
-        current_frame = skel_norm[:, :, (img_ix * STRIDE + frame_ix * SKIP)]
+    for order_ix in range(SPATIAL_DIM):
 
-        if frame_ix != TEMPORAL_DIM - 1:
-            next_frame = skel_norm[:, :, (img_ix * STRIDE + (frame_ix+1) * SKIP)]
-        else:
-            next_frame = current_frame
-            compute_diff = False
+        joints_order = get_order(order_ix)
+        temporal_arr = None
+        temporal_arr_diff = None
 
-        for order_ix in range(SPATIAL_DIM):
+        for frame_ix in range(TEMPORAL_DIM):
 
-            diff, value = super_pixel(current_frame, order_ix, next_frame, compute_diff)
-            skel_arr[order_ix * SPIXEL: (order_ix + 1) * SPIXEL,frame_ix * SPIXEL: (frame_ix + 1) * SPIXEL] = value
-            diff_arr[order_ix * SPIXEL: (order_ix + 1) * SPIXEL, frame_ix * SPIXEL: (frame_ix + 1) * SPIXEL] = diff
+            current_frame = skel_norm[:, :, (img_ix * STRIDE + frame_ix * SKIP)]
+            temporal_arr = current_frame[joints_order] if temporal_arr is None else np.vstack((temporal_arr, current_frame[joints_order]))
 
-    return skel_arr, diff_arr
+            if frame_ix != TEMPORAL_DIM - 1:
+                next_frame = skel_norm[:, :, (img_ix * STRIDE + (frame_ix+1) * SKIP)]
+                diff = current_frame[joints_order] - next_frame[joints_order]
+            else:
+                diff = np.reshape(current_frame, (5, 5, 3))
 
-def gen(datafiles, labels, process_name, savePath):
+            temporal_arr_diff = diff if temporal_arr_diff is None else np.hstack((temporal_arr_diff, diff))
+
+        spatial_arr = temporal_arr if spatial_arr is None else np.hstack((spatial_arr, temporal_arr))
+        spatial_arr_diff = temporal_arr_diff if spatial_arr_diff is None else np.vstack((spatial_arr_diff, temporal_arr_diff))
+
+    print(spatial_arr_diff.shape)
+    return spatial_arr, spatial_arr_diff
+
+def gen(datafiles, process_name, savePath):
 
     print('process {} handling total {} files'.format(process_name, len(datafiles)))
-    image_count = 0
 
     for count in tqdm(range(len(datafiles))):
 
         skel_norm = datafiles[count]
-        skel_norm = np.reshape(skel_norm, (25, 3, skel_norm.shape[0]))
-        ac_id = str(labels[count])
+        skel_norm_data = np.array(skel_norm['input'])
+        skel_norm_data = np.reshape(skel_norm_data, (25, 3, skel_norm_data.shape[0]))
 
-        fm_num = skel_norm.shape[2]
+        ac_id = str(skel_norm['label'])
+
+        fm_num = skel_norm_data.shape[2]
 
         if fm_num < TEMPORAL_DIM:
-          skel_norm = skel_interpolate(skel_norm)
-          fm_num = skel_norm.shape[2]
+          skel_norm_data = skel_interpolate(skel_norm_data)
+          fm_num = skel_norm_data.shape[2]
           if fm_num < TEMPORAL_DIM:
-              skel_norm = skel_interpolate(skel_norm)
-              fm_num = skel_norm.shape[2]
-
-        # find velocity
-        # diff = velocity(skel_norm)
-        # #diff_arr = create_img(diff, img_ix)
-        # diff_img = cv2.normalize(diff, diff_img, 0, 1, cv2.NORM_MINMAX)
-        # diff_img = np.array(diff_img * 255, dtype=np.uint8)
+              skel_norm_data = skel_interpolate(skel_norm_data)
+              fm_num = skel_norm_data.shape[2]
 
         img_num = int((fm_num - TEMPORAL_DIM * SKIP) / STRIDE + 1)
-        for img_ix in range(img_num):
 
-            skel_arr, diff_arr = create_img(skel_norm, img_ix)
+        for img_ix in range(img_num):
+            image_count = 0
+            skel_arr, velocity_arr = create_img(skel_norm_data, img_ix)
             skel_img = cv2.normalize(skel_arr, skel_arr, 0, 1, cv2.NORM_MINMAX)
             skel_img = np.array(skel_img * 255, dtype=np.uint8)
 
-            diff_img = cv2.normalize(diff_arr, diff_arr, 0, 1, cv2.NORM_MINMAX)
-            diff_img = np.array(diff_img * 255, dtype=np.uint8)
+            velocity_img = cv2.normalize(velocity_arr, velocity_arr, 0, 1, cv2.NORM_MINMAX)
+            velocity_img = np.array(velocity_img * 255, dtype=np.uint8)
 
-            save_file = savePath + '/' + '{:08}_{}'.format(image_count, ac_id) + '.png'
-            final_img = np.concatenate((skel_img, diff_img), axis=2)
-            pickle.dump(final_img, open(save_file, 'wb'))
+            save_file = savePath + '/' + '0_{}_L_{}'.format(ac_id, image_count) + '.png'
+            save_file_v = savePath + '/' + '0_{}_V_{}'.format(ac_id, image_count) + '.png'
+            image_count += 1 
+            cv2.imwrite(save_file, skel_img)
+            cv2.imwrite(save_file_v, velocity_img)
+        break
 
-        if count % 2000 == 0:
-            print('Process {} done with {} files'.format(process_name, count))
+        # if count % 2000 == 0:
+        #     print('Process {} done with {} files'.format(process_name, count))
             # print(final_img.shape)
 #            imageio.imwrite(save_file, diff_img)
 
-# read down sampled train file here
-datafiles = pickle.load(open('/home/ahmed/Desktop/dataset_skeleton/cross_subject_data/dsamp_test.p', 'rb'))
-print('Total num examples ',len(datafiles))
-
-labels = pickle.load(open('/home/ahmed/Desktop/dataset_skeleton/cross_subject_data/labels_proper_test.p', 'rb'))
-
-from multiprocessing import Process
 
 if __name__ == '__main__':
 
-    datafiles = pickle.load(open('/home/ahmed/Desktop/dataset_skeleton/cross_subject_data/dsamp_train.p', 'rb'))
-    print('Total num examples ', len(datafiles))
+    datafiles = pickle.load(open('/home/ahmed/Desktop/dataset_skeleton/cross_subject_data/trans_test_data.pkl', 'rb'))
+    print('Total num examples ', len(datafiles)) # 40091
 
-    labels = pickle.load(open('/home/ahmed/Desktop/dataset_skeleton/cross_subject_data/labels_proper_train.p', 'rb'))
-    savePath = './nturgb+d_skeletons_location/'
+    savePath = '/home/ahmed/Desktop/dataset_skeleton/temp/'
 
     if not os.path.exists(savePath):
         os.makedirs(savePath)
-
-    pool = Pool(processes=4)
-    start = 0
-    increment = 5000
-
-    for i in range(4):
-        pool.apply_async(gen, [datafiles[start:start+increment], labels[start:start+increment], str(i), savePath])
-        start = start + increment
-        if i==3:
-            pool.apply_async(gen, [datafiles[start:], labels[start:], str(i), savePath])
-    pool.close()
-    pool.join()
-        # parsed = pool.apply_async(gen, [datafiles[:5000], labels[:10], 'one'])
-        # pattern = pool.apply_async(gen, [datafiles[10:20], labels[10:20], 'two'])
+    gen(datafiles[:2], '1', savePath)
+    # pool = Pool(processes=5)
+    # start = 0
+    # increment = 10000
+    #
+    # for i in range(5):
+    #     pool.apply_async(gen, [datafiles[start:start+increment], str(i), savePath])
+    #     start = start + increment
+    #     if i==4:
+    #         pool.apply_async(gen, [datafiles[start:], str(i), savePath])
+    # pool.close()
+    # pool.join()
