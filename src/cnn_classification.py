@@ -9,17 +9,20 @@ import torch.nn as nn
 from torch.utils.data import DataLoader
 from data_source_reader_video import SkeletonsDataset, SimpleDataset, FolderDataset
 from torch.optim.lr_scheduler import ReduceLROnPlateau
-#from embeddings.main_model import *
+# from embeddings.main_model import *
 from ntu_preprocess import *
 import cv2
 import pickle
 import sys
+from embeddings.main_model import resnet18_train
 from models.resnet_models import resnet18
 from models.inceptionresnet import InceptionResnetV1
+from center_loss import CenterLoss
 
 # os.environ["WANDB_MODE"] = "dryrun"
 os.environ["WANDB_API_KEY"] = "cbf5ed4387d24dbdda68d6de22de808c592f792e"
 os.environ["WANDB_ENTITY"] = "khurram"
+
 
 def train():
     '''
@@ -48,12 +51,11 @@ def train():
         data = data.to(device)
         targets = targets.to(device)
         targets = targets.view(-1)
-         # skel_data = data
         # skel_data = data
-        optimizer.zero_grad()
-
+        # skel_data = data
         # skel_decoded, video_decoded = model(data)
-        skel_decoded = model(data)
+        x_feat, skel_decoded = model(data)
+        c_loss = criterion_cent(x_feat, targets)
         loss = skel_criterion(skel_decoded, targets)
 
         # Calculating accuracies
@@ -65,16 +67,19 @@ def train():
             class_correct[label] += c[i].item()
             class_total[label] = class_total[label] + 1
 
-
         # video_loss = video_criterion(video_decoded, skel_data)
         # sum_skel_loss.append(skel_loss.item())
         # sum_video_loss.append(video_loss.item())
         # loss = skel_loss #+ video_loss
+        optimizer.zero_grad()
+        optimizer_centloss.zero_grad()
+        loss = loss + c_loss
         loss.backward()
+        optimizer.step()
+        optimizer_centloss.step()
 
         torch.nn.utils.clip_grad_norm_(model.parameters(), 0.5)
-        optimizer.step()
-        total_loss.append(loss.item())
+        total_loss.append(loss.item() + c_loss.item())
         # sum_curl_loss += loss.item()
 
         # logging interval
@@ -82,9 +87,9 @@ def train():
             elapsed = time.time() - start_time
             print('| epoch {:3d} | {:8d}/{:8d} batches | '
                   'lr {:02.4f} | ms/batch {:5.2f} | '
-                  'loss {:5.2f} '.format(
+                  'loss {:5.2f} | center_loss {:5.2f} '.format(
                 epoch, batch_idx, len(train_loader), optimizer.param_groups[0]['lr'],
-                elapsed * 1000 / log_interval, loss.item()))
+                elapsed * 1000 / log_interval, loss.item(), c_loss.item()))
             start_time = time.time()
 
         # wandb.sklearn.plot_confusion_matrix(targets.cpu().numpy().squeeze(), predicted.cpu().numpy(), labels=classes)
@@ -95,11 +100,10 @@ def train():
 
     print('TRAINING Accuracies now !')
     print('=' * 89)
-    acc = calculate_accuracy(class_correct,class_total)
+    acc = calculate_accuracy(class_correct, class_total)
     print('=' * 89)
     return epoch_loss, acc
     # write_to_graph('train/loss', sum_curl_loss/len(train_loader), writer, step_count_tb)
-
 
 
 def evaluate(eval_model, eval_loader):
@@ -120,19 +124,21 @@ def evaluate(eval_model, eval_loader):
 
     with torch.no_grad():
         for data, targets in eval_loader:
+
             data = data.to(device)  # 100, 75, 150
+            targets = targets.to(device)
+            targets = targets.view(-1)
             # skel_data = data#.view(75 * batch_size, 150) # 7500, 150
             # data = data.reshape((100,1,11250))
             optimizer.zero_grad()
+            optimizer_centloss.zero_grad()
             # skel_decoded, video_decoded = model(data)
-            skel_decoded = model(data)
-            # calculate all the losses and perform backprop
-            targets = targets.to(device)
-            targets = targets.view(-1)
+            x_feat, skel_decoded = model(data)
+            c_loss = criterion_cent(x_feat, targets)
             loss = skel_criterion(skel_decoded, targets)
-            #            video_loss = video_criterion(video_decoded, skel_data)
+            # calculate all the losses and perform backprop
             # loss = skel_loss #+ video_loss
-            total_loss.append(loss.item())
+            total_loss.append(loss.item() + c_loss.item())
 
             # Calculating accuracies code starts here
             _, predicted = torch.max(skel_decoded.view(-1, len(classes)), 1)
@@ -150,6 +156,7 @@ def evaluate(eval_model, eval_loader):
 
     return np.sum(total_loss) / len(eval_loader), val_acc
 
+
 def calculate_accuracy(class_correct, class_total):
     acc_sum = 0
     for i in range(len(classes)):
@@ -165,14 +172,15 @@ def calculate_accuracy(class_correct, class_total):
     return acc_sum / len(classes)  # , error_rate
     # write_to_graph(split+'/Accuracy', acc_sum/60, writer, epoch)
 
+
 # training arguments
 parser = argparse.ArgumentParser(description="Skeleton Classification Training Script")
-parser.add_argument("-lr", "--learning_rate", default=0.001, type=float, help="Learning rate of model. Default 5.0")
+parser.add_argument("-lr", "--learning_rate", default=0.1, type=float, help="Learning rate of model. Default 5.0")
 parser.add_argument("-b", "--batch_size", default=100, type=int, help="Batch Size for training")
 parser.add_argument("-eb", "--eval_batch_size", default=100, type=int, help="Batch Size for evaluation")
-parser.add_argument("-tr_d", "--train_data", default='/home/ahmed/Desktop/Skepxel_GitHub/data/NTU/skepxel_images/train',
+parser.add_argument("-tr_d", "--train_data", default='/home/ahmed/Desktop/dataset_skeleton/trans_best_data/train',
                     help='Path to training data')
-parser.add_argument("-ev_d", "--eval_data", default='/home/ahmed/Desktop/Skepxel_GitHub/data/NTU/skepxel_images/test',
+parser.add_argument("-ev_d", "--eval_data", default='/home/ahmed/Desktop/dataset_skeleton/trans_best_data/test',
                     help='Path to eval data')
 parser.add_argument("-ts_d", "--test_data", help='Path to test data')
 parser.add_argument("-e", "--epochs", type=int, default=100, help='Number of epochs to train model for')
@@ -180,7 +188,8 @@ parser.add_argument("-hid_dim", "--nhid", type=int, default=8, help='Number of h
 parser.add_argument("-dropout", "--dropout", type=float, default=0.2, help='Dropout value, default is 0.2')
 parser.add_argument("-t", "--train", help="Put Model in training mode", default=True)
 parser.add_argument("-f", "--frame_count", help="Frame count per video", default=60)
-parser.add_argument("-c", "--checkpoint", help="path to store model weights", default="/home/ahmed/Desktop/model_experiments/inception_resnet")
+parser.add_argument("-c", "--checkpoint", help="path to store model weights",
+                    default="/home/ahmed/Desktop/model_experiments/inception_resnet")
 parser.add_argument("-bs", "--batch_shuffle", help="path to store model weights", default=True)
 parser.add_argument("-rc", "--resume_checkpoint", help="path to store model weights",
                     default="./logs/output_2020-09-22 12:37:39.576905/epoch_2020-09-23 06:34:34.803320")
@@ -234,13 +243,17 @@ if args.train:
     # model = skeleton_lstm(n_features=150).to(device)
     # model = classification_nn(num_feature=128, num_class=60).to(device)
     # model = resnet18().to(device)
-    model = InceptionResnetV1(classify=True, num_classes=60).to(device)
+    model = InceptionResnetV1(classify=True, num_classes=60, num_channels=3).to(device)
+    # model = resnet18_train().to(device)
     print(model)
     skel_criterion = nn.CrossEntropyLoss()  # nn.MSELoss(reduction='sum')
+    criterion_cent = CenterLoss(num_classes=60, feat_dim=128)
 
     # video_criterion = nn.MSELoss(reduction='sum')
-    optimizer = torch.optim.Adam(model.parameters(), lr=args.learning_rate)
-        #torch.optim.RMSprop(model.parameters(), lr=args.learning_rate)#
+    # optimizer = torch.optim.Adam(model.parameters(), lr=args.learning_rate)
+    optimizer = torch.optim.RMSprop(model.parameters(), lr=args.learning_rate)  #
+    optimizer_centloss = torch.optim.RMSprop(criterion_cent.parameters(), lr=args.learning_rate)
+
     scheduler = ReduceLROnPlateau(optimizer, 'min', patience=4, min_lr=0.000001)
 
     best_val_loss = float("inf")
@@ -275,19 +288,21 @@ if args.train:
                                                                                      (time.time() - epoch_start_time),
                                                                                      tr_loss))
         logging.info('| end of epoch {:3d} | time: {:5.2f}s | Train loss {:5.4f} | '.format(epoch, (
-                    time.time() - epoch_start_time), tr_loss))
+                time.time() - epoch_start_time), tr_loss))
 
         val_loss, val_acc = evaluate(model, eval_loader)
         scheduler.step(val_loss)
 
-        wandb.log({"train_loss": tr_loss, "train_accuracy":tr_acc, "test_loss": val_loss,
-                   "learing_rate": optimizer.param_groups[0]['lr'], "test_accuracy":val_acc})
+        wandb.log({"train_loss": tr_loss, "train_accuracy": tr_acc, "test_loss": val_loss,
+                   "learing_rate": optimizer.param_groups[0]['lr'], "test_accuracy": val_acc})
         print('-' * 89)
         print('| end of epoch {:3d} | time: {:5.2f}s | valid loss {:5.4f} | valid acc {:5.4f} | '.format(epoch,
-                                                                                     (time.time() - epoch_start_time),
-                                                                                     val_loss, val_acc))
+                                                                                                         (
+                                                                                                                     time.time() - epoch_start_time),
+                                                                                                         val_loss,
+                                                                                                         val_acc))
         logging.info('| end of epoch {:3d} | time: {:5.2f}s | valid loss {:5.4f} | '.format(epoch, (
-                    time.time() - epoch_start_time), val_loss))
+                time.time() - epoch_start_time), val_loss))
         print('-' * 89)
         # write_to_graph('Val/loss', val_loss, writer, epoch)
         if val_loss < best_val_loss:

@@ -13,22 +13,28 @@ from torch.utils.data import Dataset, DataLoader
 class FolderDataset(Dataset):
     """Skeletons dataset."""
 
-    def __init__(self, path):
+    def __init__(self, path, num_channels=3):
 
         self.base_path = path
         self.features = os.listdir(path)
+        self.num_channels = num_channels
         print('Total examples: ', len(self.features))
-        
+
     def __len__(self):
         return len(self.features)
 
     def __getitem__(self, idx):
 
-        data_source = pickle.load(open(os.path.join(self.base_path, self.features[idx]), 'rb'))
-        in_f = torch.tensor(data_source[:, :, :3], dtype=torch.float)
+        if self.num_channels == 6:
+            data_source = pickle.load(open(os.path.join(self.base_path, self.features[idx]), 'rb'))
+        else:
+            data_source = cv2.imread(os.path.join(self.base_path, self.features[idx]))
+
+        in_f = torch.tensor(data_source, dtype=torch.float)
         label = self.features[idx].split('_')[-1].split('.')[0]
         labels = torch.tensor([int(label)], dtype=torch.long)
-        in_f = in_f.permute(2, 0, 1) # 180 * 180 * 6 -> 6 * 180 * 180
+        in_f = in_f.permute(2, 0, 1)  # 180 * 180 * 6 -> 6 * 180 * 180
+
         return in_f, labels
 
 class SimpleDataset(Dataset):

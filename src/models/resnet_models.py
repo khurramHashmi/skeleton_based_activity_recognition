@@ -60,7 +60,7 @@ class BasicBlock(nn.Module):
         out = self.bn1(out)
         out = self.relu(out)
         # our changes
-        out = self.drop(out)
+#         out = self.drop(out)
 
         out = self.conv2(out)
         out = self.bn2(out)
@@ -108,13 +108,13 @@ class Bottleneck(nn.Module):
         out = self.bn1(out)
         out = self.relu(out)
         # our changes
-        out = self.drop(out)
+#         out = self.drop(out)
 
         out = self.conv2(out)
         out = self.bn2(out)
         out = self.relu(out)
        # our changes
-        out = self.drop(out)
+#         out = self.drop(out)
 
         out = self.conv3(out)
         out = self.bn3(out)
@@ -125,7 +125,7 @@ class Bottleneck(nn.Module):
         out += identity
         out = self.relu(out)
         # our changes
-        out = self.drop(out)
+#         out = self.drop(out)
         return out
 
 
@@ -213,7 +213,7 @@ class ResNet(nn.Module):
         x = self.conv1(x)
         x = self.bn1(x)
        # our changes
-        x = self.drop(x)
+#         x = self.drop(x)
         x = self.relu(x)
         x = self.maxpool(x)
 
@@ -224,9 +224,9 @@ class ResNet(nn.Module):
 
         x = self.avgpool(x)
         x = torch.flatten(x, 1)
-        x = self.fc(x)
+        y = self.fc(x)
 
-        return x
+        return x, y
 
     def forward(self, x):
         return self._forward_impl(x)

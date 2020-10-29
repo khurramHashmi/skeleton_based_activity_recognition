@@ -199,7 +199,7 @@ class InceptionResnetV1(nn.Module):
             initialized. (default: {None})
         dropout_prob {float} -- Dropout probability. (default: {0.6})
     """
-    def __init__(self, pretrained=None, classify=False, num_classes=None, dropout_prob=0.6, device=None):
+    def __init__(self, pretrained=None, classify=False, num_classes=None, dropout_prob=0.6, num_channels=3, device=None):
         super().__init__()
 
         # Set simple attributes
@@ -216,7 +216,7 @@ class InceptionResnetV1(nn.Module):
 
 
         # Define layers
-        self.conv2d_1a = BasicConv2d(3, 64, kernel_size=3, stride=2)
+        self.conv2d_1a = BasicConv2d(num_channels, 64, kernel_size=3, stride=2)
         self.conv2d_2a = BasicConv2d(64, 64, kernel_size=3, stride=1)
         self.conv2d_2b = BasicConv2d(64, 96, kernel_size=3, stride=1, padding=1)
         self.maxpool_3a = nn.MaxPool2d(3, stride=2)
@@ -296,10 +296,10 @@ class InceptionResnetV1(nn.Module):
         x = self.last_linear(x.view(x.shape[0], -1))
         x = self.last_bn(x)
         if self.classify:
-            x = self.logits(x)
+            y = self.logits(x)
         else:
-            x = F.normalize(x, p=2, dim=1)
-        return x
+            y = F.normalize(x, p=2, dim=1)
+        return x, y
 
 
 def load_weights(mdl, name):
