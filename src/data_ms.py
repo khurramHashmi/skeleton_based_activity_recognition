@@ -44,7 +44,7 @@ class NTUDataLoaders(object):
 
         return DataLoader(self.train_set, batch_size=batch_size,
                           shuffle=True, num_workers=num_workers,
-                          collate_fn=self.collate_fn_fix_train, pin_memory=True, drop_last=True)
+                          collate_fn=self.collate_fn_fix_train, pin_memory=True, drop_last=False)
 
     def get_size(self):
         return self.train_set.shape[0]

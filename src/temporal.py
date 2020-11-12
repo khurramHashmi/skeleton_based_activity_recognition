@@ -125,20 +125,15 @@ def gen(loader, process_name, savePath):
 
         ac_id = str(target[0].numpy())  #str(skel_norm['label'])
         do_inter = True
-        # original = skel_norm_data.shape[2]
-        # interpolated = False
 
         while do_inter:
             fm_num = skel_norm_data.shape[2]
             if fm_num < 40:
                 skel_norm_data = skel_interpolate(skel_norm_data)
-                # interpolated = True
             else:
                 do_inter = False
-                # if interpolated:
-                #     print('size increased from {} to {}'.format(original, fm_num))
 
-        img_num = 5  # int((fm_num - TEMPORAL_DIM * SKIP) / STRIDE + 1)
+        img_num = 1  # int((fm_num - TEMPORAL_DIM * SKIP) / STRIDE + 1)
 
         for img_ix in range(img_num):
             skel_arr = create_img(skel_norm_data, img_ix)
@@ -147,15 +142,11 @@ def gen(loader, process_name, savePath):
 
             # velocity_img = cv2.normalize(velocity_arr, velocity_arr, 0, 1, cv2.NORM_MINMAX)
             # velocity_img = np.array(velocity_img * 255, dtype=np.uint8)
-
             save_file = savePath + '/' + str(uuid.uuid4()) + '_{}'.format(ac_id) + '.png'
             # final_img = np.concatenate((skel_img, velocity_img), axis=2)
             # pickle.dump(final_img, open(save_file, 'wb'))
             cv2.imwrite(save_file, skel_img)
 
-        # break
-        # if count % 2000 == 0:
-        #     print('Process {} done with {} files'.format(process_name, count))
 
 if __name__ == '__main__':
 
@@ -176,37 +167,43 @@ if __name__ == '__main__':
         val_Y = np.argmax(f['valid_y'][:], -1)
         datafiles = np.concatenate([datafiles, val_X], axis=0)
         labels = np.concatenate([labels, val_Y], axis=0)
+
         test_features = f['test_x'][:]
         test_data_label = np.argmax(f['test_y'][:], -1)
+        del f, val_X, val_Y
 
         data_array = None
-        ntu_loaders = NTUDataLoaders(datafiles, labels, 0, seg=30)
+        ntu_loaders = NTUDataLoaders(datafiles, labels, 0, seg=25)
         train_loader = ntu_loaders.get_loader(64, 2)
 
         for i, (data, _) in enumerate(train_loader):
             data_array = data if data_array is None else np.vstack((data_array, data))
+        print(data_array.shape)
+        print(labels.shape)
 
+        #
         save_path = '/home/ahmed/Desktop/dataset_skeleton/SGN_Data'
         h5file = h5py.File(os.path.join(save_path, 'train.h5'), 'w')
         h5file.create_dataset('x', data=data_array)
         h5file.create_dataset('y', data=labels)
         h5file.close()
-
-        ntu_loaders = NTUDataLoaders(test_features, test_data_label, 0, seg=30)
-        train_loader = ntu_loaders.get_loader(64, 2)
-
+        #
+        ntu_loaders = NTUDataLoaders(test_features, test_data_label, 0, seg=25)
+        test_loader = ntu_loaders.get_loader(64, 2)
+        #
         data_array = None
-        for i, (data, _) in enumerate(train_loader):
+        for i, (data, _) in enumerate(test_loader):
             data_array = data if data_array is None else np.vstack((data_array, data))
-
+        #
+        print(data_array.shape, test_data_label.shape)
         h5file = h5py.File(os.path.join(save_path, 'test.h5'), 'w')
         h5file.create_dataset('x', data=data_array)
         h5file.create_dataset('y', data=test_data_label)
         h5file.close()
 
         # del f, val_X, val_Y
-
-        # ntu_loaders = NTUDataLoaders(datafiles, labels, 0, seg=30)
+        # print(labels[28414])
+        # ntu_loaders = NTUDataLoaders(datafiles[28414:], labels[28414:], 0, seg=30)
         # train_loader = ntu_loaders.get_loader(1, 2)
         #
         # print('Total num examples ', datafiles.shape[0])  # 40091
@@ -233,23 +230,17 @@ if __name__ == '__main__':
     else:
 
         path = '/home/ahmed/Desktop/dataset_skeleton/SGN_Data/NTU_CS.h5'
-
         f = h5py.File(path, 'r')
         test_features = f['test_x'][:]
         test_data_label = np.argmax(f['test_y'][:], -1)
+        del f
 
-        # datafiles = pickle.load(
-        #     open('/home/ahmed/Desktop/dataset_skeleton/cross_subject_data/trans_test_data.pkl', 'rb'))
-        # print('Total num examples ', len(datafiles))  # 16000-
-        #
-        savePath = '/home/ahmed/Desktop/dataset_skeleton/test/'
-
+        savePath = '/home/ahmed/Desktop/dataset_skeleton/test_one/'
         if not os.path.exists(savePath):
             os.makedirs(savePath)
 
         ntu_loaders = NTUDataLoaders(test_features, test_data_label, 0, seg=30)
         test_loader = ntu_loaders.get_loader(1, 2)
-        del f
         gen(test_loader, '1', savePath)
 
         # pool = Pool(processes=5)
