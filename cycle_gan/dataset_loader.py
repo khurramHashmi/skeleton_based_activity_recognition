@@ -14,6 +14,7 @@
 # }
 # =====================
 import random
+import torch
 # =====================
 # load the training and testing sample features
 # The feature is extracted by existing approach without fine-tuning
@@ -89,7 +90,9 @@ class data_loader:
             xx.append(self.train_data_x[sample_num])
             yy.append(self.train_data_y[sample_num])
             zz.append(self.train_data_label[sample_num])
-        return yy, xx, zz
+
+        return torch.tensor(yy, dtype=torch.float), torch.tensor(xx, dtype=torch.float), torch.tensor(zz, dtype=torch.long)
+        # return yy, xx, zz
 
     # randomly choose _batch_size RGB and depth feature in the testing set
     def test_next_batch(self, _batch_size):
@@ -100,4 +103,5 @@ class data_loader:
             xx.append(self.test_data_x[sample_num])
             yy.append(self.test_data_y[sample_num])
             zz.append(self.test_data_label[sample_num])
-        return yy, xx, zz
+        # return yy, xx, zz
+        return torch.tensor(yy, dtype=torch.float), torch.tensor(xx, dtype=torch.float), torch.tensor(zz, dtype=torch.long)
