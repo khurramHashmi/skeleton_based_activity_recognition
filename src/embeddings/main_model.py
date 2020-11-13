@@ -39,7 +39,6 @@ class resnet18_train(nn.Module):
         super(resnet18_train, self).__init__()
         self.model = resnet18(pretrained=False)
         num_ftrs = self.model.fc.in_features
-        self.model.relu = nn.LeakyReLU(0.1)
         self.model.fc = nn.Linear(num_ftrs, n_classes)
 
     def forward(self, x):

@@ -6,6 +6,137 @@ import h5py
 import torch
 from torch.utils.data import Dataset
 
+class feature_reader(Dataset):
+
+    '''
+        This class reads features extracted by cycle gan. No preprocessing needed
+    '''
+
+    def __init__(self, batch_size, train_path=None, test_path=None, is_train=True, split_=False, seg=30):
+
+        self.batch_size = batch_size
+        self.train_path = train_path
+        self.test_path = test_path
+        self.is_train = is_train
+        self.split_ = split_
+
+        self.train_indices_dict = {}
+        self.test_indices_dict = {}
+        self.test_data_label = []
+        self.train_data_label = []
+
+        self.read_data()
+
+    def __len__(self):
+        if self.is_train:
+            return len(self.input_features)
+        return len(self.test_features)
+
+    def __getitem__(self, item):
+
+        if self.is_train:
+            return self.train_next_batch(item)
+        return self.test_next_batch(item)
+
+    def train_next_batch(self, sample_num):
+
+        # for sample_num in random.sample(range(self.sample_train_num), _batch_size):
+        class_idx = self.train_data_label[sample_num]
+        indices = self.train_indices_dict[str(class_idx)].copy()
+
+        cur_label = np.zeros(60)
+        cur_label[class_idx] = 1
+
+        if self.split_:
+            f = h5py.File(os.path.join(self.train_path, self.input_features[random.choice(indices)]), 'r')
+            first_ex = np.array(f['x'][:])
+            f = h5py.File(os.path.join(self.train_path, self.input_features[random.choice(indices)]), 'r')
+            second_example = np.array(f['x'][:])
+        else:
+            first_ex = os.path.join(self.train_path, self.input_features[random.choice(indices)])
+            f = h5py.File(first_ex, 'r')
+            first_ex = np.array(f['x'][:])
+            second_ex = os.path.join(self.train_path, self.input_features[random.choice(indices)])
+            f = h5py.File(second_ex, 'r')
+            second_ex = np.array(f['x'][:])
+
+        return torch.tensor(first_ex, dtype=torch.float), torch.tensor(second_ex, dtype=torch.float), \
+               torch.tensor(cur_label, dtype=torch.long)
+
+    # randomly choose _batch_size RGB and depth feature in the testing set
+    def test_next_batch(self, sample_num):
+
+        #for sample_num in random.sample(range(self.sample_test_num), _batch_size):
+        class_idx = self.test_data_label[sample_num]
+        indices = self.test_indices_dict[str(class_idx)].copy()
+        cur_label = np.zeros(60)
+        cur_label[class_idx] = 1
+
+        if self.split_:
+            first_ex= np.array(self.test_features[random.choice(indices)])['input']
+            zero_pos = np.where(~first_ex.any(axis=1))[0]
+            if len(zero_pos) > 0:
+                zero_pos = zero_pos[0]
+            else:
+                zero_pos = len(first_ex)
+            first_ex = first_ex[:zero_pos]
+            xx.append(first_ex[:first_ex.shape[0]//2, :])
+            yy.append(first_ex[first_ex.shape[0]//2:, :])
+        else:
+            first_ex = os.path.join(self.test_path, self.test_features[random.choice(indices)])
+            f = h5py.File(first_ex, 'r')
+            first_ex = np.array(f['x'][:])
+
+            second_ex = os.path.join(self.test_path, self.test_features[random.choice(indices)])
+            f = h5py.File(second_ex, 'r')
+            second_ex = np.array(f['x'][:])
+
+        return torch.tensor(first_ex, dtype=torch.float), torch.tensor(second_ex, dtype=torch.float), \
+               torch.tensor(cur_label, dtype=torch.long)
+
+    def read_data(self):
+
+        if self.is_train:
+
+            if self.split_:
+                self.input_features = os.listdir(self.train_path)
+
+            else:
+                self.input_features = os.listdir(self.train_path)
+                for j in self.input_features:
+                    self.train_data_label.append(int(j.split('_')[-1].split('.')[0]))  # get label from file name
+
+            for i in range(60):
+                idx = []
+                for j in range(len(self.train_data_label)):
+                    if self.train_data_label[j] == i:
+                        idx.append(j)
+                self.train_indices_dict[str(i)] = idx.copy()
+            self.sample_train_num = len(self.input_features)
+
+        else:
+
+            if self.split_:
+
+                f = h5py.File(self.test_path, 'r')
+                self.test_features = f['test_x'][:]
+                self.test_data_label = list(np.argmax(f['test_y'][:], -1))
+                del f
+
+            else:
+                self.test_features = os.listdir(self.test_path)
+
+                for j in self.test_features:
+                    self.test_data_label.append(int(j.split('_')[-1].split('.')[0]))
+
+            self.sample_test_num = len(self.test_features)
+            for k in range(60):
+                idx = []
+                for l in range(len(self.test_data_label)):
+                    if self.test_data_label[l] == k:
+                        idx.append(l)
+                self.test_indices_dict[str(k)] = idx.copy()
+
 
 class pytorch_dataloader(Dataset):
 

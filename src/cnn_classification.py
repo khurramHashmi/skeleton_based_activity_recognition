@@ -19,7 +19,7 @@ from models.resnet_models import resnet18
 from models.inceptionresnet import InceptionResnetV1
 from center_loss import CenterLoss
 
-# os.environ["WANDB_MODE"] = "dryrun"
+os.environ["WANDB_MODE"] = "dryrun"
 os.environ["WANDB_API_KEY"] = "cbf5ed4387d24dbdda68d6de22de808c592f792e"
 os.environ["WANDB_ENTITY"] = "khurram"
 
@@ -228,24 +228,19 @@ if args.train:
     # eval_dataset = SkeletonsDataset(base_path, mode='eval', image_dataset=True)
     # eval_loader = DataLoader(eval_dataset, batch_size=args.eval_batch_size, shuffle=args.batch_shuffle, **kwargs)
     # base_path = "autoencoder_features/"  # "/home/neuralnet/NW_UCLA/" #
-    train_dataset = FolderDataset(args.train_data)
-    train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=args.batch_shuffle, **kwargs)
-    eval_dataset = FolderDataset(args.eval_data)
-    eval_loader = DataLoader(eval_dataset, batch_size=args.eval_batch_size, shuffle=args.batch_shuffle, **kwargs)
+    # train_dataset = FolderDataset(args.train_data)
+    # train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=args.batch_shuffle, **kwargs)
+    # eval_dataset = FolderDataset(args.eval_data)
+    # eval_loader = DataLoader(eval_dataset, batch_size=args.eval_batch_size, shuffle=args.batch_shuffle, **kwargs)
     # # '''
     #     Loading all the models here
     #     Classification Network
     #     Defining the criterion for losses
     # '''
-    # model = UnsuperVisedAE(batch_size=args.batch_size).to(device)
-    # model = SkeletonAutoEnoder().to(device)
-    # model = VideoAutoEnoder_sep(batch_size=args.batch_size).to(device)
-    # model = skeleton_lstm(n_features=150).to(device)
-    # model = classification_nn(num_feature=128, num_class=60).to(device)
-    # model = resnet18().to(device)
-    model = InceptionResnetV1(classify=True, num_classes=60, num_channels=3).to(device)
-    # model = resnet18_train().to(device)
+    model = resnet18_train()
     print(model)
+    import sys
+    sys.exit(0)
     skel_criterion = nn.CrossEntropyLoss()  # nn.MSELoss(reduction='sum')
     criterion_cent = CenterLoss(num_classes=60, feat_dim=128)
 
@@ -256,7 +251,8 @@ if args.train:
 
     scheduler = ReduceLROnPlateau(optimizer, 'min', patience=4, min_lr=0.000001)
 
-    best_val_loss = float("inf")
+    best_val_loss = float("inf")import sys
+                sys.exit(0)
     max_epochs = args.epochs  # number of epochs
     step_count_tb = 1  # xaxis for calculating loss value for tensorboard
 

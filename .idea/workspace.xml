@@ -21,11 +21,10 @@
   <component name="ChangeListManager">
     <list default="true" id="f6b16808-7739-4700-bd58-15bcec04c840" name="Default Changelist" comment="">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Dockerfile" beforeDir="false" afterPath="$PROJECT_DIR$/Dockerfile" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Dockerfile_tf" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/data_ms.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/data_ms.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/requirement.txt" beforeDir="false" afterPath="$PROJECT_DIR$/src/requirement.txt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/temporal.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/temporal.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/cycle_gan/custom_dataloaders.py" beforeDir="false" afterPath="$PROJECT_DIR$/cycle_gan/custom_dataloaders.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/cycle_gan/cyclegan_pytorch.py" beforeDir="false" afterPath="$PROJECT_DIR$/cycle_gan/cyclegan_pytorch.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/cnn_classification.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/cnn_classification.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/embeddings/main_model.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/embeddings/main_model.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -130,11 +129,11 @@
       <screen x="65" y="24" width="1855" height="1056" />
     </state>
     <state x="755" y="283" key="#xdebugger.evaluate/65.24.1855.1056@65.24.1855.1056" timestamp="1599315995264" />
-    <state x="2655" y="351" width="424" height="484" key="FileChooserDialogImpl" timestamp="1605111124350">
-      <screen x="1920" y="0" width="1920" height="1200" />
+    <state x="776" y="370" width="424" height="484" key="FileChooserDialogImpl" timestamp="1605275991043">
+      <screen x="67" y="27" width="1853" height="1173" />
     </state>
     <state x="2655" y="351" width="424" height="484" key="FileChooserDialogImpl/67.27.1853.1173/1920.0.1920.1200@1920.0.1920.1200" timestamp="1605111124350" />
-    <state x="776" y="370" width="424" height="484" key="FileChooserDialogImpl/67.27.1853.1173/1920.0.1920.1200@67.27.1853.1173" timestamp="1605088683918" />
+    <state x="776" y="370" width="424" height="484" key="FileChooserDialogImpl/67.27.1853.1173/1920.0.1920.1200@67.27.1853.1173" timestamp="1605275991043" />
     <state width="1832" height="281" key="GridCell.Tab.0.bottom" timestamp="1599502505198">
       <screen x="65" y="24" width="1855" height="1056" />
     </state>
