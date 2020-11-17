@@ -80,8 +80,9 @@ class feature_reader(Dataset):
             else:
                 zero_pos = len(first_ex)
             first_ex = first_ex[:zero_pos]
-            xx.append(first_ex[:first_ex.shape[0]//2, :])
-            yy.append(first_ex[first_ex.shape[0]//2:, :])
+            first_ex = first_ex[:first_ex.shape[0]//2, :]
+            second_ex = first_ex[first_ex.shape[0]//2:, :]
+
         else:
             first_ex = os.path.join(self.test_path, self.test_features[random.choice(indices)])
             f = h5py.File(first_ex, 'r')
@@ -140,14 +141,17 @@ class feature_reader(Dataset):
 
 class pytorch_dataloader(Dataset):
 
-    def __init__(self, batch_size, train_path=None, test_path=None, is_train=True, split_=False, seg=30):
+    def __init__(self, batch_size, train_path=None, test_path=None, is_train=True, split_=False, seg=30, reshape=False,
+                 reshape_shape=(30, 25, 3)):
 
+        self.seg = seg
+        self.split_ = split_
+        self.is_train = is_train
+        self.test_path = test_path
         self.batch_size = batch_size
         self.train_path = train_path
-        self.test_path = test_path
-        self.is_train = is_train
-        self.split_ = split_
-        self.seg = seg
+        self.reshape = reshape
+        self.reshape_shape = reshape_shape
         self.read_data()
 
     def __len__(self):
@@ -163,57 +167,48 @@ class pytorch_dataloader(Dataset):
 
     def train_next_batch(self, sample_num):
 
-        xx = []  # training batch of depth features
-        yy = []  # training batch of RGB features
-        zz = []  # training batch of labels
-        # for sample_num in random.sample(range(self.sample_train_num), _batch_size):
-
-        cur_label = np.zeros(60)
-        cur_label[self.train_data_label[sample_num]] = 1
-        cur_label = torch.tensor(cur_label, dtype=torch.long)
-        zz.append(cur_label)
-
         class_idx = self.train_data_label[sample_num]
         indices = self.train_indices_dict[str(class_idx)].copy()
+
+        cur_label = np.zeros(60)
+        cur_label[class_idx] = 1
+        cur_label = torch.tensor(cur_label, dtype=torch.long)
 
         if self.split_:
             f = h5py.File(os.path.join(self.train_path, self.input_features[random.choice(indices)]), 'r')
             first_ex = np.array(f['x'][:])
             f = h5py.File(os.path.join(self.train_path, self.input_features[random.choice(indices)]), 'r')
-            second_example = np.array(f['x'][:])
+            second_ex = np.array(f['x'][:])
         else:
             first_ex = self.input_features[random.choice(indices)]['input']
             first_ex = np.array(first_ex)
-            second_example = self.input_features[random.choice(indices)]['input']
-            second_example = np.array(second_example)
+            second_ex = self.input_features[random.choice(indices)]['input']
+            second_ex = np.array(second_ex)
 
-        xx.append(first_ex)
-        yy.append(second_example)
+        first_ex, _ = self.normalize([first_ex], cur_label)
+        second_ex, _ = self.normalize([second_ex], cur_label)
 
-        xx, _ = self.normalize(xx, zz)
-        yy, _ = self.normalize(yy, zz)
-        xx = xx.view(1, -1)
-        yy = yy.view(1, -1)
+        if self.reshape:
+            first_ex = np.reshape(first_ex, self.reshape_shape)
+            second_ex = np.reshape(second_ex, self.reshape_shape)
+            first_ex = torch.tensor(first_ex, dtype=torch.float)
+            first_ex = first_ex.permute(2, 0, 1)
+            second_ex = torch.tensor(second_ex, dtype=torch.float)
+            second_ex = second_ex.permute(2, 0, 1)
+            return second_ex, first_ex, cur_label
 
-        if len(xx) < 2:
-            return torch.tensor(yy[0], dtype=torch.float), torch.tensor(xx[0], dtype=torch.float), zz[0]
 
-        return yy, xx, zz
-        # return torch.tensor(yy, dtype=torch.float), torch.tensor(xx, dtype=torch.float), zz
+        return torch.tensor(second_ex, dtype=torch.float).view(-1), torch.tensor(first_ex, dtype=torch.float).view(-1), cur_label
+
 
     # randomly choose _batch_size RGB and depth feature in the testing set
     def test_next_batch(self, sample_num):
-        xx = []  # testing batch of depth features
-        yy = []  # testing batch of RGB features
-        zz = []  # testing batch of labels
 
-        #for sample_num in random.sample(range(self.sample_test_num), _batch_size):
-        cur_label = np.zeros(60)
-        cur_label[self.test_data_label[sample_num]] = 1
-        cur_label = torch.tensor(cur_label, dtype=torch.long)
-        zz.append(cur_label)
         class_idx = self.test_data_label[sample_num]
         indices = self.test_indices_dict[str(class_idx)].copy()
+        cur_label = np.zeros(60)
+        cur_label[class_idx] = 1
+        cur_label = torch.tensor(cur_label, dtype=torch.long)
 
         if self.split_:
             first_ex= np.array(self.test_features[random.choice(indices)])['input']
@@ -223,26 +218,33 @@ class pytorch_dataloader(Dataset):
             else:
                 zero_pos = len(first_ex)
             first_ex = first_ex[:zero_pos]
-            xx.append(first_ex[:first_ex.shape[0]//2, :])
-            yy.append(first_ex[first_ex.shape[0]//2:, :])
+            first_ex = first_ex[:first_ex.shape[0]//2, :]
+            second_ex = first_ex[first_ex.shape[0]//2:, :]
         else:
+
             first_ex = self.test_features[random.choice(indices)]['input']
             first_ex = np.array(first_ex)
             second_ex = self.test_features[random.choice(indices)]['input']
             second_ex = np.array(second_ex)
-            xx.append(first_ex)
-            yy.append(second_ex)
 
-        xx, _ = self.normalize(xx, zz)
-        yy, _ = self.normalize(yy, zz)
-        xx = xx.view(1, -1)
-        yy = yy.view(1, -1)
+        first_ex, _ = self.normalize([first_ex], cur_label)
+        second_ex, _ = self.normalize([second_ex], cur_label)
 
-        if len(xx) < 2:
-            return torch.tensor(yy[0], dtype=torch.float), torch.tensor(xx[0], dtype=torch.float), zz[0]
+        if self.reshape:
+            first_ex = np.reshape(first_ex, self.reshape_shape)
+            second_ex = np.reshape(second_ex, self.reshape_shape)
+            first_ex = torch.tensor(first_ex, dtype=torch.float)
+            first_ex = first_ex.permute(2, 0, 1)
+            second_ex = torch.tensor(second_ex, dtype=torch.float)
+            second_ex = second_ex.permute(2, 0, 1)
+            return second_ex, first_ex, cur_label
 
-        return yy, xx, zz
-        # return torch.tensor(yy, dtype=torch.float), torch.tensor(xx, dtype=torch.float), zz
+        return torch.tensor(second_ex, dtype=torch.float).view(-1), torch.tensor(first_ex, dtype=torch.float).view(-1), cur_label
+
+    def normalize(self, first_ex, y):
+
+        x = self.Tolist_fix(first_ex, train=1)
+        return x[0], y
 
     def read_data(self):
 
@@ -388,16 +390,6 @@ class pytorch_dataloader(Dataset):
         x = torch.transpose(x, 2, 3)
         x = x.contiguous().view(x.size()[:2] + (-1,))
         return x
-
-    def normalize(self, first_ex, y):
-        theta = 0.3
-        x = self.Tolist_fix(first_ex, train=1)
-        # lens = np.array([x_.shape[0] for x_ in x], dtype=np.int)
-        # idx = lens.argsort()[::-1]  # sort sequence by valid length in descending order
-        # y = np.array(y)[idx]
-        x = torch.stack([torch.from_numpy(x[i]) for i in range(len(x))], 0)
-        # x = self._transform(x, theta)
-        return x, y
 
 
 class custom_data_loader:

@@ -23,8 +23,6 @@
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/cycle_gan/custom_dataloaders.py" beforeDir="false" afterPath="$PROJECT_DIR$/cycle_gan/custom_dataloaders.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/cycle_gan/cyclegan_pytorch.py" beforeDir="false" afterPath="$PROJECT_DIR$/cycle_gan/cyclegan_pytorch.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/cnn_classification.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/cnn_classification.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/embeddings/main_model.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/embeddings/main_model.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -48,10 +46,31 @@
   </component>
   <component name="PropertiesComponent">
     <property name="RunOnceActivity.OpenProjectViewOnStart" value="true" />
-    <property name="last_opened_file_path" value="$PROJECT_DIR$" />
+    <property name="last_opened_file_path" value="$PROJECT_DIR$/../pytorch-CycleGAN-and-pix2pix" />
     <property name="settings.editor.selected.configurable" value="com.jetbrains.python.configuration.PyActiveSdkModuleConfigurable" />
   </component>
-  <component name="RunManager" selected="Python.main">
+  <component name="RunManager" selected="Python.resnet_cycle_gan">
+    <configuration name="cyclegan_pytorch" type="PythonConfigurationType" factoryName="Python" temporary="true" nameIsGenerated="true">
+      <module name="skeleton_based_activity_recognition" />
+      <option name="INTERPRETER_OPTIONS" value="" />
+      <option name="PARENT_ENVS" value="true" />
+      <envs>
+        <env name="PYTHONUNBUFFERED" value="1" />
+      </envs>
+      <option name="SDK_HOME" value="" />
+      <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$/cycle_gan" />
+      <option name="IS_MODULE_SDK" value="false" />
+      <option name="ADD_CONTENT_ROOTS" value="true" />
+      <option name="ADD_SOURCE_ROOTS" value="true" />
+      <option name="SCRIPT_NAME" value="$PROJECT_DIR$/cycle_gan/cyclegan_pytorch.py" />
+      <option name="PARAMETERS" value="" />
+      <option name="SHOW_COMMAND_LINE" value="false" />
+      <option name="EMULATE_TERMINAL" value="false" />
+      <option name="MODULE_MODE" value="false" />
+      <option name="REDIRECT_INPUT" value="false" />
+      <option name="INPUT_FILE" value="" />
+      <method v="2" />
+    </configuration>
     <configuration name="main" type="PythonConfigurationType" factoryName="Python" temporary="true" nameIsGenerated="true">
       <module name="skeleton_based_activity_recognition" />
       <option name="INTERPRETER_OPTIONS" value="" />
@@ -94,8 +113,31 @@
       <option name="INPUT_FILE" value="" />
       <method v="2" />
     </configuration>
+    <configuration name="resnet_cycle_gan" type="PythonConfigurationType" factoryName="Python" temporary="true" nameIsGenerated="true">
+      <module name="skeleton_based_activity_recognition" />
+      <option name="INTERPRETER_OPTIONS" value="" />
+      <option name="PARENT_ENVS" value="true" />
+      <envs>
+        <env name="PYTHONUNBUFFERED" value="1" />
+      </envs>
+      <option name="SDK_HOME" value="" />
+      <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$/cycle_gan" />
+      <option name="IS_MODULE_SDK" value="false" />
+      <option name="ADD_CONTENT_ROOTS" value="true" />
+      <option name="ADD_SOURCE_ROOTS" value="true" />
+      <option name="SCRIPT_NAME" value="$PROJECT_DIR$/cycle_gan/resnet_cycle_gan.py" />
+      <option name="PARAMETERS" value="" />
+      <option name="SHOW_COMMAND_LINE" value="false" />
+      <option name="EMULATE_TERMINAL" value="false" />
+      <option name="MODULE_MODE" value="false" />
+      <option name="REDIRECT_INPUT" value="false" />
+      <option name="INPUT_FILE" value="" />
+      <method v="2" />
+    </configuration>
     <recent_temporary>
       <list>
+        <item itemvalue="Python.resnet_cycle_gan" />
+        <item itemvalue="Python.cyclegan_pytorch" />
         <item itemvalue="Python.main" />
         <item itemvalue="Python.read_skeleton_tsv" />
       </list>
@@ -129,50 +171,77 @@
       <screen x="65" y="24" width="1855" height="1056" />
     </state>
     <state x="755" y="283" key="#xdebugger.evaluate/65.24.1855.1056@65.24.1855.1056" timestamp="1599315995264" />
-    <state x="776" y="370" width="424" height="484" key="FileChooserDialogImpl" timestamp="1605275991043">
+    <state x="776" y="370" width="424" height="484" key="FileChooserDialogImpl" timestamp="1605350286240">
       <screen x="67" y="27" width="1853" height="1173" />
     </state>
     <state x="2655" y="351" width="424" height="484" key="FileChooserDialogImpl/67.27.1853.1173/1920.0.1920.1200@1920.0.1920.1200" timestamp="1605111124350" />
-    <state x="776" y="370" width="424" height="484" key="FileChooserDialogImpl/67.27.1853.1173/1920.0.1920.1200@67.27.1853.1173" timestamp="1605275991043" />
-    <state width="1832" height="281" key="GridCell.Tab.0.bottom" timestamp="1599502505198">
-      <screen x="65" y="24" width="1855" height="1056" />
+    <state x="776" y="370" width="424" height="484" key="FileChooserDialogImpl/67.27.1853.1173/1920.0.1920.1200@67.27.1853.1173" timestamp="1605350286240" />
+    <state width="1830" height="362" key="GridCell.Tab.0.bottom" timestamp="1605372894968">
+      <screen x="67" y="27" width="1853" height="1173" />
     </state>
     <state width="1832" height="281" key="GridCell.Tab.0.bottom/65.24.1855.1056@65.24.1855.1056" timestamp="1599502505198" />
-    <state width="1832" height="281" key="GridCell.Tab.0.center" timestamp="1599502505197">
-      <screen x="65" y="24" width="1855" height="1056" />
+    <state width="1830" height="362" key="GridCell.Tab.0.bottom/67.27.1853.1173/1920.0.1920.1200@67.27.1853.1173" timestamp="1605372894968" />
+    <state width="1830" height="362" key="GridCell.Tab.0.center" timestamp="1605372894968">
+      <screen x="67" y="27" width="1853" height="1173" />
     </state>
     <state width="1832" height="281" key="GridCell.Tab.0.center/65.24.1855.1056@65.24.1855.1056" timestamp="1599502505197" />
-    <state width="1832" height="281" key="GridCell.Tab.0.left" timestamp="1599502505196">
-      <screen x="65" y="24" width="1855" height="1056" />
+    <state width="1830" height="362" key="GridCell.Tab.0.center/67.27.1853.1173/1920.0.1920.1200@67.27.1853.1173" timestamp="1605372894968" />
+    <state width="1830" height="362" key="GridCell.Tab.0.left" timestamp="1605372894968">
+      <screen x="67" y="27" width="1853" height="1173" />
     </state>
     <state width="1832" height="281" key="GridCell.Tab.0.left/65.24.1855.1056@65.24.1855.1056" timestamp="1599502505196" />
-    <state width="1832" height="281" key="GridCell.Tab.0.right" timestamp="1599502505197">
-      <screen x="65" y="24" width="1855" height="1056" />
+    <state width="1830" height="362" key="GridCell.Tab.0.left/67.27.1853.1173/1920.0.1920.1200@67.27.1853.1173" timestamp="1605372894968" />
+    <state width="1830" height="362" key="GridCell.Tab.0.right" timestamp="1605372894968">
+      <screen x="67" y="27" width="1853" height="1173" />
     </state>
     <state width="1832" height="281" key="GridCell.Tab.0.right/65.24.1855.1056@65.24.1855.1056" timestamp="1599502505197" />
-    <state width="1832" height="339" key="GridCell.Tab.1.bottom" timestamp="1599411255361">
-      <screen x="65" y="24" width="1855" height="1056" />
+    <state width="1830" height="362" key="GridCell.Tab.0.right/67.27.1853.1173/1920.0.1920.1200@67.27.1853.1173" timestamp="1605372894968" />
+    <state width="1830" height="362" key="GridCell.Tab.1.bottom" timestamp="1605372910606">
+      <screen x="67" y="27" width="1853" height="1173" />
     </state>
     <state width="1832" height="339" key="GridCell.Tab.1.bottom/65.24.1855.1056@65.24.1855.1056" timestamp="1599411255361" />
-    <state width="1832" height="339" key="GridCell.Tab.1.center" timestamp="1599411255361">
-      <screen x="65" y="24" width="1855" height="1056" />
+    <state width="1830" height="362" key="GridCell.Tab.1.bottom/67.27.1853.1173/1920.0.1920.1200@67.27.1853.1173" timestamp="1605372910606" />
+    <state width="1830" height="362" key="GridCell.Tab.1.center" timestamp="1605372910606">
+      <screen x="67" y="27" width="1853" height="1173" />
     </state>
     <state width="1832" height="339" key="GridCell.Tab.1.center/65.24.1855.1056@65.24.1855.1056" timestamp="1599411255361" />
-    <state width="1832" height="339" key="GridCell.Tab.1.left" timestamp="1599411255360">
-      <screen x="65" y="24" width="1855" height="1056" />
+    <state width="1830" height="362" key="GridCell.Tab.1.center/67.27.1853.1173/1920.0.1920.1200@67.27.1853.1173" timestamp="1605372910606" />
+    <state width="1830" height="362" key="GridCell.Tab.1.left" timestamp="1605372910605">
+      <screen x="67" y="27" width="1853" height="1173" />
     </state>
     <state width="1832" height="339" key="GridCell.Tab.1.left/65.24.1855.1056@65.24.1855.1056" timestamp="1599411255360" />
-    <state width="1832" height="339" key="GridCell.Tab.1.right" timestamp="1599411255361">
-      <screen x="65" y="24" width="1855" height="1056" />
+    <state width="1830" height="362" key="GridCell.Tab.1.left/67.27.1853.1173/1920.0.1920.1200@67.27.1853.1173" timestamp="1605372910605" />
+    <state width="1830" height="362" key="GridCell.Tab.1.right" timestamp="1605372910606">
+      <screen x="67" y="27" width="1853" height="1173" />
     </state>
     <state width="1832" height="339" key="GridCell.Tab.1.right/65.24.1855.1056@65.24.1855.1056" timestamp="1599411255361" />
+    <state width="1830" height="362" key="GridCell.Tab.1.right/67.27.1853.1173/1920.0.1920.1200@67.27.1853.1173" timestamp="1605372910606" />
     <state x="486" y="174" key="SettingsEditor" timestamp="1599411234847">
       <screen x="65" y="24" width="1855" height="1056" />
     </state>
     <state x="486" y="174" key="SettingsEditor/65.24.1855.1056@65.24.1855.1056" timestamp="1599411234847" />
+    <state width="926" height="587" key="XDebugger.FullValuePopup" timestamp="1605373070827">
+      <screen x="67" y="27" width="1853" height="1173" />
+    </state>
+    <state width="926" height="587" key="XDebugger.FullValuePopup/67.27.1853.1173/1920.0.1920.1200@67.27.1853.1173" timestamp="1605373070827" />
     <state x="774" y="527" key="com.intellij.openapi.vcs.update.UpdateOrStatusOptionsDialogupdate-v2" timestamp="1603967041542">
       <screen x="67" y="27" width="1853" height="1173" />
     </state>
     <state x="774" y="527" key="com.intellij.openapi.vcs.update.UpdateOrStatusOptionsDialogupdate-v2/67.27.1853.1173/1920.0.1920.1200@67.27.1853.1173" timestamp="1603967041542" />
+    <state x="534" y="324" width="908" height="576" key="com.intellij.xdebugger.impl.breakpoints.ui.BreakpointsDialogFactory$2" timestamp="1605372846346">
+      <screen x="67" y="27" width="1853" height="1173" />
+    </state>
+    <state x="534" y="324" width="908" height="576" key="com.intellij.xdebugger.impl.breakpoints.ui.BreakpointsDialogFactory$2/67.27.1853.1173/1920.0.1920.1200@67.27.1853.1173" timestamp="1605372846346" />
+  </component>
+  <component name="XDebuggerManager">
+    <breakpoint-manager>
+      <breakpoints>
+        <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
+          <url>file://$PROJECT_DIR$/cycle_gan/resnet_cycle_gan.py</url>
+          <line>509</line>
+          <option name="timeStamp" value="6" />
+        </line-breakpoint>
+      </breakpoints>
+    </breakpoint-manager>
   </component>
 </project>
