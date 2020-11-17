@@ -40,10 +40,10 @@ class activation_2(nn.Module):
 #         return torch.cat([input, minibatch_features], dim=1)
 # Triplet Semihard pytorch loss xxx
 
-class LSTM_Module(nn.Module):
+class LSTM_Gen(nn.Module):
 
     def __init__(self, input_size,hidden_size, num_layers=2):
-        super(LSTM_Module, self).__init__()
+        super(LSTM_Gen, self).__init__()
 
         self.input_size = input_size
         self.hidden_size = hidden_size
@@ -59,6 +59,22 @@ class LSTM_Module(nn.Module):
         h0 = torch.zeros(self.num_layers, x.size(0), self.hidden_size).to(device)
         c0 = torch.zeros(self.num_layers, x.size(0), self.hidden_size).to(device)
         x, _ = self.lstm_2(x, (h0, c0))
+        return x
+
+class LSTM_Encoders(nn.Module):
+
+    def __init__(self, input_size,hidden_size, num_layers=2):
+        super(LSTM_Encoders, self).__init__()
+        self.input_size = input_size
+        self.hidden_size = hidden_size
+        self.num_layers = num_layers
+        self.lstm_1 = nn.LSTM(input_size, hidden_size, num_layers,batch_first=True, dropout=0.5, bidirectional=True)
+
+    def forward(self, x):
+
+        h0 = torch.zeros(self.num_layers * 2 , x.size(0), self.hidden_size).to(device)
+        c0 = torch.zeros(self.num_layers * 2, x.size(0), self.hidden_size).to(device)
+        x, _ = self.lstm_1(x, (h0, c0))
         return x
 
 
@@ -119,8 +135,8 @@ class cyclegan(nn.Module):
         self.num_classes = num_classes
         self.hx_dim = 800 #1024 # Encoder 1 hidden dimension
         self.hy_dim = 800 #1024 # Encoder 2 hidden dimension
-        self.space_dim_1 = 300 #256 # First Subspace dimension
-        self.space_dim_2 = 300 #256 # Second Subspace dimension
+        self.space_dim_1 = 128 #256 # First Subspace dimension
+        self.space_dim_2 = 128 #256 # Second Subspace dimension
 
         self.noise_dim = 300 #256 # Noise dimension same as the sub space dimensions
         self.epsilon = 1e-6
@@ -145,8 +161,8 @@ class cyclegan(nn.Module):
         self.activation_25 = activation_2(0.25)
         self.activation_2 = activation_2()
 
-        self.lstm = LSTM_Module(75,75,2)
-
+        self.lstm = LSTM_Gen(75,75,2)
+        self.lstm_encoder = LSTM_Encoders(75,self.space_dim_1,2)
         self.relu = nn.ReLU()
         self.softmax = nn.Softmax()
         self.sigmoid = nn.Sigmoid()
@@ -176,52 +192,61 @@ class cyclegan(nn.Module):
 
     def create_encoder_1(self):
 
-        self.encoder_l1= nn.Linear(self.x_dim, self.hx_dim)
-        self.encoder_l2 = nn.Linear(self.hx_dim, self.space_dim_1)
-        self.encoder1 = nn.Sequential(*[self.encoder_l1, self.activation_25, self.encoder_l2, self.activation_25]).cuda()
-        return [self.encoder_l1, self.encoder_l2]
+        # self.encoder_l1= nn.Linear(self.x_dim, self.hx_dim)
+        # self.encoder_l2 = nn.Linear(self.hx_dim, self.space_dim_1)
+        self.encoder1 = nn.Sequential(*[self.lstm_encoder]).cuda()
+
+        return None
 
     def create_encoder_2(self):
         self.encoder2_l1 = nn.Linear(self.y_dim, self.hy_dim)
         self.encoder2_l2 = nn.Linear(self.hy_dim, self.space_dim_2)
         self.encoder2 = nn.Sequential(*[self.encoder2_l1, self.activation_25, self.encoder2_l2, self.activation_25]).cuda()
+
         return [self.encoder2_l1, self.encoder2_l2]
 
     def encoder_forward(self, encoder_type, x):
 
-        if encoder_type == 1:
-            # x = self.sigmoid(x)
-            # x = self.activation(self.encoder_l1(x))
-            # return self.activation(self.encoder_l2(x))
-            return self.encoder1(x)
+        # if encoder_type == 1:
+        #     # x = self.sigmoid(x)
+        #     # x = self.activation(self.encoder_l1(x))
+        #     # return self.activation(self.encoder_l2(x))
+        #     return self.encoder1(x)
+        #
+        # else:
+        #     # x = self.activation(self.encoder2_l1(x))
+        #     # return self.activation(self.encoder2_l2(x))
+        #     return self.encoder2(x)
+        x = x.view(self.batch_size, self.seg, 75)
 
-        else:
-            # x = self.activation(self.encoder2_l1(x))
-            # return self.activation(self.encoder2_l2(x))
-            return self.encoder2(x)
+        x = self.encoder1(x)
+
+        # x = x.reshape(self.batch_size, -1)
+        x = x[:, -1, :]
+        return x
 
     def create_classifier1(self):
 
-        self.classifier1_l1 = nn.Linear(self.space_dim_1, self.num_classes)
+        self.classifier1_l1 = nn.Linear(self.space_dim_1*2, self.num_classes)
         self.classifier1 = nn.Sequential(*[self.classifier1_l1]).cuda()
         return [self.classifier1_l1]
 
     def classifier1_forward(self, x):
 
         Classifier_logit = self.classifier1(x)  # self.classifier1_l1(x)
-        Classifier_prob = self.sigmoid(Classifier_logit)
+        Classifier_prob = self.softmax(Classifier_logit) #Classifier_prob = self.sigmoid(Classifier_logit)
         return Classifier_logit, Classifier_prob
 
     def create_classifier2(self):
 
-        self.classifier2_l1 = nn.Linear(self.space_dim_2, self.num_classes)
+        self.classifier2_l1 = nn.Linear(self.space_dim_2*2, self.num_classes)
         self.classifier2 = nn.Sequential(*[self.classifier2_l1]).cuda()
         return [self.classifier2_l1]
 
     def classifier2_forward(self, x):
 
         Classifier_logit = self.classifier2(x)  # self.classifier2_l1(x)
-        Classifier_prob = self.sigmoid(Classifier_logit)
+        Classifier_prob = self.softmax(Classifier_logit) #Classifier_prob = self.sigmoid(Classifier_logit)
         return Classifier_logit, Classifier_prob
 
     def create_descr1(self):
@@ -423,6 +448,9 @@ class cyclegan(nn.Module):
         C_g_logit_fr, C_g_prob_fr = self.vrdn_forward(C_1_fake_prob, C_2_real_prob)
 
         # calculate classiciation loss for separate Classififers
+        # Will Try Cross Entropy Since VRDCN is already on Cross Entropy
+        # C_1_loss = self.softmax_criterion(C_1_real_logit, C_1_fake_logit, labels)
+        # C_2_loss = self.softmax_criterion(C_2_real_logit, C_2_fake_logit, labels)
         C_1_loss = self.compute_classifier_loss(C_1_real_logit, C_1_fake_logit, labels)
         C_2_loss = self.compute_classifier_loss(C_2_real_logit, C_2_fake_logit, labels)
 
@@ -543,6 +571,7 @@ class cyclegan(nn.Module):
 
         for epoch in range(epochs):
 
+            acc_te_r1r2_num, acc_te_r1f2_num, acc_te_f1r2_num, acc_c1_r_sum, acc_c1_f_sum, acc_c2_r_sum, acc_c2_f_sum = [], [], [], [], [], [], []
             G1_loss, G2_loss, D1_loss, D2_loss, E_1_loss, E_2_loss, C_g_loss_sum, C_1_loss_sum, C_2_loss_sum = [], [], [], [], [], [], [], [], []
 
             # train_x, train_y, labels = train_loader.train_next_batch(self.batch_size)
@@ -552,7 +581,8 @@ class cyclegan(nn.Module):
                     op.zero_grad()
 
                 noise_sample = torch.tensor(self.sample_Noise(self.batch_size, self.noise_dim), dtype=torch.float)
-                g1_l, g2_l, d1_l, d2_l, e1_l, e2_l, cg_l, c_1_l, c_2_l = self.forward(train_x.to(self.device), train_y.to(self.device),
+                sub_1_acc, sub_2_acc, sub_1_2_acc, acc_c1_r, acc_c1_f, acc_c2_r, \
+                acc_c2_f, g1_l, g2_l, d1_l, d2_l, e1_l, e2_l, cg_l, c_1_l, c_2_l = self.forward(train_x.to(self.device), train_y.to(self.device),
                                                                         labels.to(self.device), noise_sample.to(device))
 
                 g1_l.backward(retain_graph=True)
@@ -565,9 +595,13 @@ class cyclegan(nn.Module):
                 c_1_l.backward(retain_graph=True)
                 c_2_l.backward(retain_graph=True)
 
-
-
-
+                acc_te_r1r2_num.append(sub_1_acc.item())
+                acc_te_r1f2_num.append(sub_2_acc.item())
+                acc_te_f1r2_num.append(sub_1_2_acc.item())
+                acc_c1_r_sum.append(acc_c1_r.item())
+                acc_c1_f_sum.append(acc_c1_f.item())
+                acc_c2_r_sum.append(acc_c2_r.item())
+                acc_c2_f_sum.append(acc_c2_f.item())
                 G1_loss.append(g1_l.item())
                 G2_loss.append(g2_l.item())
                 D1_loss.append(d1_l.item())
@@ -583,11 +617,16 @@ class cyclegan(nn.Module):
                 for op in optimizer_list:
                     op.step()
 
+
             print('Epoch = ', epoch, '  Loss_G_1 = %.4f' % np.mean(G1_loss), ' Loss_G_2 = %.4f' % np.mean(G2_loss),
                   '  Loss_D_1 = %.4f' % np.mean(D1_loss), '  Loss_D_2 = %.4f' % np.mean(D2_loss),
                   ' Loss_E_1 = %.4f' % np.mean(E_1_loss),
                   '  Loss_E_2 = %.4f' % np.mean(E_2_loss), '  Loss_VRDCN = %.4f' % np.mean(C_g_loss_sum),
                   '  Loss_C_1 = %.4f' % np.mean(C_1_loss_sum), '  Loss_C_2 = %.4f' % np.mean(C_2_loss_sum))
+            print('\n Epoch = ', epoch, '  Accuracy:  Subject_1_2 = %.4f' % np.mean(acc_te_r1r2_num),
+                      ' Subject_1 = %.4f' % np.mean(acc_te_r1f2_num), '  Subject_2 = %.4f' % np.mean(acc_te_f1r2_num)
+                      , ' C_1_R = %.4f' % np.mean(acc_c1_r_sum), ' C_1_F = %.4f' % np.mean(acc_c1_f_sum),
+                      ' C_2_R = %.4f' % np.mean(acc_c2_r_sum), ' C_2_F = %.4f' % np.mean(acc_c2_f_sum))
 
             if epoch % 5 == 0 and epoch != 0:
 
@@ -603,7 +642,7 @@ class cyclegan(nn.Module):
                         # noise_sample = torch.tensor(self.sample_Noise(train_data.sample_test_num, self.noise_dim), dtype=torch.float)
 
                         sub_1_acc, sub_2_acc, sub_1_2_acc, acc_c1_r, acc_c1_f, acc_c2_r, \
-                        acc_c2_f,g1_l, g2_l, d1_l, d2_l, e1_l, e2_l, cg_l, c_1_l, c_2_l = self.forward(test_x.to(self.device), test_y.to(self.device),
+                        acc_c2_f, g1_l, g2_l, d1_l, d2_l, e1_l, e2_l, cg_l, c_1_l, c_2_l = self.forward(test_x.to(self.device), test_y.to(self.device),
                                                                          test_labels.to(self.device), noise_sample.to(device), eval_mode=True)
                         acc_te_r1r2_num.append(sub_1_acc.item())
                         acc_te_r1f2_num.append(sub_2_acc.item())
