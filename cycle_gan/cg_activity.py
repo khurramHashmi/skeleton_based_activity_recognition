@@ -1,13 +1,17 @@
 import os
+import wandb
 import torch
 import numpy as np
 from torch import nn
-import custom_dataloaders
 from tqdm import tqdm
+import custom_dataloaders
+import matplotlib.pyplot as plt
 import torch.nn.functional as F
-import wandb
+from utils import *
 from torch.utils.data import DataLoader
 from online_triplet_loss.losses import *
+from mpl_toolkits.mplot3d import Axes3D
+
 
 os.environ["WANDB_MODE"] = "dryrun"
 os.environ["WANDB_API_KEY"] = "cbf5ed4387d24dbdda68d6de22de808c592f792e"
@@ -431,6 +435,35 @@ class cyclegan(nn.Module):
         self.desc2_1.apply(self.xavier_init)
         self.desc2_2.apply(self.xavier_init)
 
+    def calculate_accuracy(self, class_correct, class_total):
+        acc_sum = 0
+        for i in range(len(classes)):
+            if class_total[i] == 0:
+                class_accuracy = 0
+            else:
+                class_accuracy = 100 * class_correct[i] / class_total[i]
+            acc_sum += class_accuracy
+            print(
+                '%d Accuracy of %5s : %2d %% and total count : %2d ' % (i, classes[i], class_accuracy, class_total[i]))
+        print('=' * 89)
+        print('Mean Average Accuracy of Camera View : %2f %%' % (acc_sum / 60))
+        print('=' * 89)
+
+        return acc_sum / len(classes)
+
+    def class_accuracy(self, pred, labels):
+
+        c = (pred == labels).squeeze()
+        class_correct = list(0. for i in range(60))
+        class_total = list(0. for i in range(60))
+
+        for i in range(labels.shape[0]):
+            label = labels[i]
+            class_correct[label] += c[i].item()
+            class_total[label] = class_total[label] + 1
+
+        return self.calculate_accuracy(class_correct, class_total)
+
 
     def forward(self, subject_1, subject_2, labels, noise, eval_mode=False):
 
@@ -519,11 +552,14 @@ class cyclegan(nn.Module):
         acc_c1_fake = torch.mean(torch.eq(torch.argmax(C_1_fake_logit, 1), torch.argmax(labels, 1)).float())
         acc_c2_real = torch.mean(torch.eq(torch.argmax(C_2_real_logit, 1), torch.argmax(labels, 1)).float())
         acc_c2_fake = torch.mean(torch.eq(torch.argmax(C_2_fake_logit, 1), torch.argmax(labels, 1)).float())
-
         # Evaluate on testing stage in 3 settings: (1) real Z1 real Z2 (2) real Z1 fake Z2 (3) fake Z1 real Z2
         C_r1r2_logit, C_r1r2_prob = self.vrdn_forward(C_1_real_prob, C_2_real_prob)  # real z1 + real z2
         acc_te_r1r2 = torch.mean(torch.eq(torch.argmax(C_r1r2_prob, 1), torch.argmax(labels, 1)).float())
-
+        # calculate per class accuracy
+        _ = self.class_accuracy(torch.argmax(C_r1r2_prob, 1), torch.argmax(labels, 1))
+        # y_pred = [classes[i] for i in torch.argmax(C_r1r2_prob, 1).detach().cpu().numpy()]
+        # y_true = [classes[i] for i in torch.argmax(labels, 1).detach().cpu().numpy()]
+        # draw_confusion_matrix(y_true, y_pred, 'test', np.unique(y_true))
         C_r1f2_logit, C_r1f2_prob = self.vrdn_forward(C_1_real_prob, C_2_fake_prob)  # real z1 + fake z2
         acc_te_r1f2 = torch.mean(torch.eq(torch.argmax(C_r1f2_prob, 1), torch.argmax(labels, 1)).float())
 
@@ -547,10 +583,21 @@ class cyclegan(nn.Module):
         return self.c_rf * torch.mean(torch.square(real_logits - labels)) + (1.0 - self.c_rf) * torch.mean(torch.square(fake_logits - labels))
         #return self.c_rf * self.gans_criterion(real_logits, labels) + (1.0 - self.c_rf) * self.gans_criterion(fake_logits, labels)
 
-
-
     def train_(self, epochs, train_loader, test_loader=None, out_dir=''):
 
+        # unique_labels = []
+        # for train_x, train_y, labels in train_loader:
+        #     for x in range(self.batch_size):
+        #         cur_label = torch.argmax(labels[x])
+        #         if cur_label not in unique_labels:
+        #             self.visualize_ex(train_x[x].numpy(), './temp', torch.argmax(labels[x]))
+        #             unique_labels.append(cur_label)
+        #         else:
+        #             continue
+        #     if len(unique_labels) == 60:
+        #         break
+        # import sys
+        # sys.exit(0)
         wandb.init(project="Cycle-Gan", reinit=True)
 
         best_val_acc = 0.0
@@ -636,11 +683,7 @@ class cyclegan(nn.Module):
                     G1_loss, G2_loss, D1_loss, D2_loss, E_1_loss, E_2_loss, C_g_loss_sum, C_1_loss_sum, C_2_loss_sum = [], [], [], [], [], [], [], [], []
 
                     for test_x, test_y, test_labels in test_loader:
-                    #test_labels = torch.argmax(test_labels, 1)
                         noise_sample = torch.tensor(self.sample_Noise(self.batch_size, self.noise_dim), dtype=torch.float)
-                        # test_x, test_y, test_labels = train_data.test_next_batch(train_data.sample_test_num)  # load all test samples
-                        # noise_sample = torch.tensor(self.sample_Noise(train_data.sample_test_num, self.noise_dim), dtype=torch.float)
-
                         sub_1_acc, sub_2_acc, sub_1_2_acc, acc_c1_r, acc_c1_f, acc_c2_r, \
                         acc_c2_f, g1_l, g2_l, d1_l, d2_l, e1_l, e2_l, cg_l, c_1_l, c_2_l = self.forward(test_x.to(self.device), test_y.to(self.device),
                                                                          test_labels.to(self.device), noise_sample.to(device), eval_mode=True)
@@ -694,37 +737,33 @@ class cyclegan(nn.Module):
 
 
 classes = ["drink water", "eat meal", "brush teeth", "brush hair", "drop", "pick up", "throw", "sit down", "stand up",
-           "clapping", "reading", "writing", "tear up paper", "put on jacket", "take off jacket", "put on a shoe", "take off a shoe", "put on glasses",
-           "take off glasses", "put on a hat/cap", "take off a hat/cap", "cheer up", "hand waving", "kicking something", "reach into pocket", "hopping",
-           "jump up", "phone call", "play with phone/tablet", "type on a keyboard", "point to something", "taking a selfie", "check time (from watch)", "rub two hands",
-           "nod head/bow", "shake head", "wipe face", "salute", "put palms together", "cross hands in front", "sneeze/cough", "staggering", "falling down",
-           "headache", "chest pain", "back pain", "neck pain", "nausea/vomiting", "fan self", "punch/slap", "kicking", "pushing", "pat on back", "point finger", "hugging",
-           "giving object", "touch pocket", "shaking hands", "walking towards", "walking apart"]
+           "clapping", "reading", "writing", "tear up paper", "put on jacket", "take off jacket", "put on a shoe",
+           "take off a shoe", "put on glasses", "take off glasses", "put on a hat/cap", "take off a hat/cap", "cheer up",
+           "hand waving", "kicking something", "reach into pocket", "hopping", "jump up", "phone call",
+           "play with phone/tablet", "type on a keyboard", "point to something", "taking a selfie",
+           "check time (from watch)", "rub two hands", "nod head/bow", "shake head", "wipe face", "salute",
+           "put palms together", "cross hands in front", "sneeze/cough", "staggering", "falling down", "headache",
+           "chest pain", "back pain", "neck pain", "nausea/vomiting", "fan self", "punch/slap", "kicking", "pushing",
+           "pat on back", "point finger", "hugging", "giving object", "touch pocket", "shaking hands",
+           "walking towards", "walking apart"]
 
 seg=50
 max_epochs=100
-batch_size = 512
+batch_size = 32
 learning_rate = 1e-4
-eval_batch_size = 512
+eval_batch_size = 32
 num_classes = len(classes)
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 kwargs = {'num_workers': 2, 'pin_memory': True} if device == 'cuda' else {}
-out_path = '/home/hashmi/Desktop/model_experiments/pytorch_cyclegan_orig'
+out_path = './temp'
 if not os.path.exists(out_path):
     os.mkdir(out_path)
 
 
-# train_dataset = custom_dataloaders.feature_reader(batch_size, train_path='/home/ahmed/Desktop/datasets/cyclegan_features/train_features_3_3', seg=seg)
-# train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=False, drop_last=True, **kwargs)
-# eval_dataset = custom_dataloaders.feature_reader(eval_batch_size, test_path='/home/ahmed/Desktop/datasets/cyclegan_features/test_features_3_3', is_train=False, seg=seg)
-# eval_loader = DataLoader(eval_dataset, batch_size=eval_batch_size, shuffle=False, drop_last=True, **kwargs)
-train_dataset = custom_dataloaders.pytorch_dataloader(batch_size, train_path='/home/hashmi/Desktop/dataset/NTURGBD-60_120/ntu_60/cross_subject_data/trans_train_data.pkl', seg=seg)
+train_dataset = custom_dataloaders.pytorch_dataloader(batch_size, train_path='/home/ahmed/Desktop/datasets/skeleton_dataset/cross_subject_data/trans_test_data.pkl', seg=seg)
 train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=False, drop_last=True, **kwargs)
-eval_dataset = custom_dataloaders.pytorch_dataloader(eval_batch_size, test_path='/home/hashmi/Desktop/dataset/NTURGBD-60_120/ntu_60/cross_subject_data/trans_test_data.pkl', is_train=False, seg=seg)
-eval_loader = DataLoader(eval_dataset, batch_size=eval_batch_size, shuffle=False, drop_last=True, **kwargs)
-
-# database = 'UCB' # assign evaluation dataset 'UWA30' and 'DHA'
-# train_data = dataset_loader.data_loader(database)
+# eval_dataset = custom_dataloaders.pytorch_dataloader(eval_batch_size, test_path='/home/hashmi/Desktop/dataset/NTURGBD-60_120/ntu_60/cross_subject_data/trans_test_data.pkl', is_train=False, seg=seg)
+# eval_loader = DataLoader(eval_dataset, batch_size=eval_batch_size, shuffle=False, drop_last=True, **kwargs)
 
 model = cyclegan(num_classes, batch_size, learning_rate, device, seg=seg).to(device)
-model.train_(max_epochs, train_loader, eval_loader, out_dir=out_path)
+model.train_(max_epochs, train_loader, out_dir=out_path)
