@@ -146,12 +146,13 @@ class pytorch_dataloader(Dataset):
 
         self.seg = seg
         self.split_ = split_
+        self.reshape = reshape
         self.is_train = is_train
         self.test_path = test_path
         self.batch_size = batch_size
         self.train_path = train_path
-        self.reshape = reshape
         self.reshape_shape = reshape_shape
+
         self.read_data()
 
     def __len__(self):
@@ -174,19 +175,19 @@ class pytorch_dataloader(Dataset):
         cur_label[class_idx] = 1
         cur_label = torch.tensor(cur_label, dtype=torch.long)
 
-        if self.split_:
-            f = h5py.File(os.path.join(self.train_path, self.input_features[random.choice(indices)]), 'r')
-            first_ex = np.array(f['x'][:])
-            f = h5py.File(os.path.join(self.train_path, self.input_features[random.choice(indices)]), 'r')
-            second_ex = np.array(f['x'][:])
-        else:
+        if not self.split_:
             first_ex = self.input_features[random.choice(indices)]['input']
             first_ex = np.array(first_ex)
             second_ex = self.input_features[random.choice(indices)]['input']
             second_ex = np.array(second_ex)
+            first_ex, _ = self.normalize([first_ex], cur_label)
+            second_ex, _ = self.normalize([second_ex], cur_label)
 
-        first_ex, _ = self.normalize([first_ex], cur_label)
-        second_ex, _ = self.normalize([second_ex], cur_label)
+        else:
+            first_ex = np.array(self.input_features[random.choice(indices)]['input'])
+            first_ex, _ = self.normalize([first_ex], cur_label)
+            second_ex = first_ex[first_ex.shape[0]//2:, :]
+            first_ex = first_ex[:first_ex.shape[0]//2, :]
 
         if self.reshape:
             first_ex = np.reshape(first_ex, self.reshape_shape)
@@ -198,7 +199,8 @@ class pytorch_dataloader(Dataset):
             return second_ex, first_ex, cur_label
 
 
-        return torch.tensor(second_ex, dtype=torch.float).view(-1), torch.tensor(first_ex, dtype=torch.float).view(-1), cur_label
+        return torch.tensor(second_ex, dtype=torch.float).view(-1), torch.tensor(first_ex, dtype=torch.float).view(-1), \
+               cur_label
 
 
     # randomly choose _batch_size RGB and depth feature in the testing set
@@ -210,25 +212,16 @@ class pytorch_dataloader(Dataset):
         cur_label[class_idx] = 1
         cur_label = torch.tensor(cur_label, dtype=torch.long)
 
-        if self.split_:
-            first_ex= np.array(self.test_features[random.choice(indices)])['input']
-            zero_pos = np.where(~first_ex.any(axis=1))[0]
-            if len(zero_pos) > 0:
-                zero_pos = zero_pos[0]
-            else:
-                zero_pos = len(first_ex)
-            first_ex = first_ex[:zero_pos]
-            first_ex = first_ex[:first_ex.shape[0]//2, :]
-            second_ex = first_ex[first_ex.shape[0]//2:, :]
+        if not self.split_:
+            first_ex = np.array(self.test_features[random.choice(indices)]['input'])
+            second_ex = np.array(self.test_features[random.choice(indices)]['input'])
+            first_ex, _ = self.normalize([first_ex], cur_label)
+            second_ex, _ = self.normalize([second_ex], cur_label)
         else:
-
-            first_ex = self.test_features[random.choice(indices)]['input']
-            first_ex = np.array(first_ex)
-            second_ex = self.test_features[random.choice(indices)]['input']
-            second_ex = np.array(second_ex)
-
-        first_ex, _ = self.normalize([first_ex], cur_label)
-        second_ex, _ = self.normalize([second_ex], cur_label)
+            first_ex = np.array(self.test_features[random.choice(indices)]['input'])
+            first_ex, _ = self.normalize([first_ex], cur_label)
+            second_ex = first_ex[first_ex.shape[0] // 2:, :]
+            first_ex = first_ex[:first_ex.shape[0] // 2, :]
 
         if self.reshape:
             first_ex = np.reshape(first_ex, self.reshape_shape)
@@ -239,7 +232,8 @@ class pytorch_dataloader(Dataset):
             second_ex = second_ex.permute(2, 0, 1)
             return second_ex, first_ex, cur_label
 
-        return torch.tensor(second_ex, dtype=torch.float).view(-1), torch.tensor(first_ex, dtype=torch.float).view(-1), cur_label
+        return torch.tensor(second_ex, dtype=torch.float).view(-1), torch.tensor(first_ex, dtype=torch.float).view(-1), \
+               cur_label
 
     def normalize(self, first_ex, y):
 
@@ -249,15 +243,10 @@ class pytorch_dataloader(Dataset):
     def read_data(self):
 
         if self.is_train:
-
-            if self.split_:
-                self.input_features = os.listdir(self.train_path)
-
-            else:
-                self.input_features = pickle.load(open(self.train_path, "rb"))
-                self.train_data_label = []
-                for j in self.input_features:
-                    self.train_data_label.append(int(j['label']))
+            self.input_features = pickle.load(open(self.train_path, "rb"))
+            self.train_data_label = []
+            for j in self.input_features:
+                self.train_data_label.append(int(j['label']))
 
             self.train_indices_dict = {}
             for i in range(60):
@@ -270,19 +259,11 @@ class pytorch_dataloader(Dataset):
 
         else:
 
-            if self.split_:
-
-                f = h5py.File(self.test_path, 'r')
-                self.test_features = f['test_x'][:]
-                self.test_data_label = list(np.argmax(f['test_y'][:], -1))
-                del f
-
-            else:
-                self.test_features = pickle.load(open(self.test_path, "rb"))
-                self.test_data_label = []
-                for j in self.test_features:
-                    self.test_data_label.append(int(j['label']))
-                    # self.test_data_label.append(int(j.split('_')[-1].split('.')[0]))
+            self.test_features = pickle.load(open(self.test_path, "rb"))
+            self.test_data_label = []
+            for j in self.test_features:
+                self.test_data_label.append(int(j['label']))
+                # self.test_data_label.append(int(j.split('_')[-1].split('.')[0]))
 
             self.sample_test_num = len(self.test_features)
             self.test_indices_dict = {}
