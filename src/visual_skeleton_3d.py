@@ -18,13 +18,20 @@ arm_joints = [23, 24, 11, 10, 9, 8, 20, 4, 5, 6, 7, 22, 21]
 leg_joints = [19, 18, 17, 16, 0, 12, 13, 14, 15]
 body = [trunk_joints, arm_joints, leg_joints]
 
+classes = ["drink water", "eat meal", "brush teeth", "brush hair", "drop", "pick up", "throw", "sit down", "stand up",
+           "clapping", "reading", "writing", "tear up paper", "put on jacket", "take off jacket", "put on a shoe", "take off a shoe", "put on glasses",
+           "take off glasses", "put on a hatcap", "take off a hatcap", "cheer up", "hand waving", "kicking something", "reach into pocket", "hopping",
+           "jump up", "phone call", "play with phonetablet", "type on a keyboard", "point to something", "taking a selfie", "check time (from watch)", "rub two hands",
+           "nod headbow", "shake head", "wipe face", "salute", "put palms together", "cross hands in front", "sneezecough", "staggering", "falling down",
+           "headache", "chest pain", "back pain", "neck pain", "nauseavomiting", "fan self", "punchslap", "kicking", "pushing", "pat on back", "point finger", "hugging",
+           "giving object", "touch pocket", "shaking hands", "walking towards", "walking apart"]
 
 # Show 3D Skeleton with Axes3D for NTU RGB+D
 class Draw3DSkeleton(object):
 
     def __init__(self, file, save_path=None, init_horizon=-45,
-                 init_vertical=20, x_rotation=120,
-                 y_rotation=120, pause_step=0.2):
+                 init_vertical=20, x_rotation=0,
+                 y_rotation=0, pause_step=0.2):
 
         self.file = file
         self.save_path = save_path
@@ -136,82 +143,93 @@ class Draw3DSkeleton(object):
 
         ax.view_init(self.init_vertical, self.init_horizon)
         plt.ion()
-        temp = coords[0]['input']
-        coords[0] = np.reshape(temp, (len(temp),25,3))
 
-        coords[0] = coords[0][:, :, :,np.newaxis]
-        # self.xyz = coords[0]
-
-        # data = np.transpose(self.xyz, (3, 1, 2, 0))
-        data = np.transpose(coords[0], (3, 0, 1,2 ))
-
-        # data rotation
-        if (self.x_rotation is not None) or (self.y_rotation is not None) and False:
-
-            if self.x_rotation > 180 or self.y_rotation > 180:
-                raise Exception("rotation angle should be less than 180.")
-
-            else:
-                print(" Angle : ",self.x_rotation)
-                data = self._rotation(data, self.x_rotation, self.y_rotation)
-
-        # data normalization
-        # data = self._normal_skeleton(data)
-
-        # print(data)
-        data = self._normal_skeleton(data)
-        print(data)
-
-        data = data[0]
+        unique_labels = []
+        for coord in coords:
 
 
-        # center_jointx = np.mean(data[:, 0, :])
-        # center_jointy = np.mean(data[:, 1, :])
+            cur_label = coord['label']
+            if cur_label not in unique_labels:
+                unique_labels.append(cur_label)
 
-        # for idx in range(len(data)):
-        #     data[idx] = imutils.rotate(data[idx], 30)
+                temp = coord['input']
+                temp = np.reshape(temp, (len(temp),25,3))
 
-            # data = imutils.rotate(data, 30, center=(center_jointx,center_jointy))
+                temp = temp[:, :, :,np.newaxis]
+                # self.xyz = coords[0]
 
-        # show every frame 3d skeleton
-        for frame_idx in range(0, data.shape[0], 5):
+                # data = np.transpose(self.xyz, (3, 1, 2, 0))
+                data = np.transpose(temp, (3, 0, 1,2 ))
 
-            plt.cla()
-            plt.title("Frame: {}".format(frame_idx))
+                # data rotation
+                if (self.x_rotation is not None) or (self.y_rotation is not None) and False:
 
-            ax.set_xlim3d([-1, 1])
-            ax.set_ylim3d([-1, 1])
-            ax.set_zlim3d([-0.8, 0.8])
+                    if self.x_rotation > 180 or self.y_rotation > 180:
+                        raise Exception("rotation angle should be less than 180.")
 
-            x = data[frame_idx, :, 0]
-            y = data[frame_idx, :, 1]
-            z = data[frame_idx, :, 2]
+                    else:
+                        print(" Angle : ",self.x_rotation)
+                        data = self._rotation(data, self.x_rotation, self.y_rotation)
 
-            # x = data[0, frame_idx, :, 0]
-            # y = data[0, frame_idx, :, 1]
-            # z = data[0, frame_idx, :, 2]
+                # data normalization
+                # data = self._normal_skeleton(data)
 
-            for part in body:
-                x_plot = x[part]
-                y_plot = y[part]
-                z_plot = z[part]
-                ax.plot(x_plot, z_plot, y_plot, color='b', marker='o', markerfacecolor='r')
+                # print(data)
+                data = self._normal_skeleton(data)
+                # print(data)
 
-            ax.set_xlabel('X')
-            ax.set_ylabel('Z')
-            ax.set_zlabel('Y')
+                data = data[0]
 
-            if self.save_path is not None:
-                save_pth = os.path.join(self.save_path, '{}.png'.format(frame_idx))
-                plt.savefig(save_pth)
-            print("The {} frame 3d skeleton......".format(frame_idx))
 
-            ax.set_facecolor('none')
-            plt.pause(self._pause_step)
+                # center_jointx = np.mean(data[:, 0, :])
+                # center_jointy = np.mean(data[:, 1, :])
 
-        plt.ioff()
-        ax.axis('off')
-        plt.show()
+                # for idx in range(len(data)):
+                #     data[idx] = imutils.rotate(data[idx], 30)
+
+                    # data = imutils.rotate(data, 30, center=(center_jointx,center_jointy))
+
+                # show every frame 3d skeleton
+                for frame_idx in range(0, data.shape[0], 10):
+
+                    plt.cla()
+                    plt.title("Frame: {}".format(frame_idx))
+
+                    ax.set_xlim3d([-1, 1])
+                    ax.set_ylim3d([-1, 1])
+                    ax.set_zlim3d([-0.8, 0.8])
+
+                    x = data[frame_idx, :, 0]
+                    y = data[frame_idx, :, 1]
+                    z = data[frame_idx, :, 2]
+
+                    # x = data[0, frame_idx, :, 0]
+                    # y = data[0, frame_idx, :, 1]
+                    # z = data[0, frame_idx, :, 2]
+
+                    for part in body:
+                        x_plot = x[part]
+                        y_plot = y[part]
+                        z_plot = z[part]
+                        ax.plot(x_plot, z_plot, y_plot, color='b', marker='o', markerfacecolor='r')
+
+                    ax.set_xlabel('X')
+                    ax.set_ylabel('Z')
+                    ax.set_zlabel('Y')
+
+                    if self.save_path is not None:
+                        save_pth = os.path.join(self.save_path, '{}_{}.png'.format(classes[cur_label],frame_idx))
+                        plt.savefig(save_pth)
+                    print("The {} frame 3d skeleton......".format(frame_idx))
+
+                    # ax.set_facecolor('none')
+                    # plt.pause(self._pause_step)
+
+            if len(unique_labels) == 60:
+                break
+        # plt.ioff()
+        # ax.axis('off')
+        # plt.show()
 
 
 if __name__ == '__main__':
@@ -219,5 +237,5 @@ if __name__ == '__main__':
 
     sk = Draw3DSkeleton(
         "/home/hashmi/Desktop/dataset/NTURGBD-60_120/nturgbd_skeletons_s001_to_s017/nturgb+d_skeletons/S001C001P004R002A008.skeleton",
-        './a08')
+        '/home/hashmi/Desktop/visual_skeleton_trans')
     sk.visual_skeleton()
