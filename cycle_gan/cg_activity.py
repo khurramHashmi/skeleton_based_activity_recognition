@@ -11,9 +11,9 @@ from utils import *
 from torch.utils.data import DataLoader
 from online_triplet_loss.losses import *
 from mpl_toolkits.mplot3d import Axes3D
+from visual_skeleton_3d import Draw3DSkeleton
 
-
-os.environ["WANDB_MODE"] = "dryrun"
+# os.environ["WANDB_MODE"] = "dryrun"
 os.environ["WANDB_API_KEY"] = "cbf5ed4387d24dbdda68d6de22de808c592f792e"
 os.environ["WANDB_ENTITY"] = "khurram"
 
@@ -203,30 +203,30 @@ class cyclegan(nn.Module):
         return None
 
     def create_encoder_2(self):
-        self.encoder2_l1 = nn.Linear(self.y_dim, self.hy_dim)
-        self.encoder2_l2 = nn.Linear(self.hy_dim, self.space_dim_2)
-        self.encoder2 = nn.Sequential(*[self.encoder2_l1, self.activation_25, self.encoder2_l2, self.activation_25]).cuda()
+        # self.encoder2_l1 = nn.Linear(self.y_dim, self.hy_dim)
+        # self.encoder2_l2 = nn.Linear(self.hy_dim, self.space_dim_2)
+        # self.encoder2 = nn.Sequential(*[self.encoder2_l1, self.activation_25, self.encoder2_l2, self.activation_25]).cuda()
 
-        return [self.encoder2_l1, self.encoder2_l2]
+        self.encoder2 = nn.Sequential(*[self.lstm_encoder]).cuda()
+
+        return None
 
     def encoder_forward(self, encoder_type, x):
 
-        # if encoder_type == 1:
-        #     # x = self.sigmoid(x)
-        #     # x = self.activation(self.encoder_l1(x))
-        #     # return self.activation(self.encoder_l2(x))
-        #     return self.encoder1(x)
-        #
-        # else:
-        #     # x = self.activation(self.encoder2_l1(x))
-        #     # return self.activation(self.encoder2_l2(x))
-        #     return self.encoder2(x)
         x = x.view(self.batch_size, self.seg, 75)
 
-        x = self.encoder1(x)
+        if encoder_type == 1:
+            # x = self.sigmoid(x)
+            # x = self.activation(self.encoder_l1(x))
+            # return self.activation(self.encoder_l2(x))
+            x = self.encoder1(x)
+        else:
+            # x = self.activation(self.encoder2_l1(x))
+            # return self.activation(self.encoder2_l2(x))
+            x = self.encoder2(x)
 
-        # x = x.reshape(self.batch_size, -1)
         x = x[:, -1, :]
+
         return x
 
     def create_classifier1(self):
@@ -356,17 +356,19 @@ class cyclegan(nn.Module):
         return x
 
     def create_gen2(self):
-        self.gen2_l1 = nn.Linear(self.y_dim ,self.h_g_dim, bias=False)
-        self.gen2_l2 = nn.Linear(self.h_g_dim,self.h_g_dim, bias=False)
-        self.gen2_l3 = nn.Linear(self.h_g_dim, self.h_g_dim)
-        self.gen2_l4 = nn.Linear(self.h_g_dim, self.x_dim)
-        self.batch_norm1_g2 = nn.BatchNorm1d(self.h_g_dim, eps=1e-6)
-        self.batch_norm2_g2 = nn.BatchNorm1d(self.h_g_dim, eps=1e-6)
-        self.gen_ones = torch.ones(self.h_g_dim)
-        self.gen_zeros = torch.zeros(self.h_g_dim)
-        self.gen2 = nn.Sequential(*[self.gen2_l1, self.batch_norm1_g2, self.activation_2, self.gen2_l2, self.batch_norm2_g2, self.gen2_l3, self.activation_2, self.gen2_l4]).cuda()
+        # self.gen2_l1 = nn.Linear(self.y_dim ,self.h_g_dim, bias=False)
+        # self.gen2_l2 = nn.Linear(self.h_g_dim,self.h_g_dim, bias=False)
+        # self.gen2_l3 = nn.Linear(self.h_g_dim, self.h_g_dim)
+        # self.gen2_l4 = nn.Linear(self.h_g_dim, self.x_dim)
+        # self.batch_norm1_g2 = nn.BatchNorm1d(self.h_g_dim, eps=1e-6)
+        # self.batch_norm2_g2 = nn.BatchNorm1d(self.h_g_dim, eps=1e-6)
+        # self.gen_ones = torch.ones(self.h_g_dim)
+        # self.gen_zeros = torch.zeros(self.h_g_dim)
+        # self.gen2 = nn.Sequential(*[self.gen2_l1, self.batch_norm1_g2, self.activation_2, self.gen2_l2, self.batch_norm2_g2, self.gen2_l3, self.activation_2, self.gen2_l4]).cuda()
 
-        return [self.gen2_l1, self.gen2_l2, self.gen2_l3, self.gen2_l4]
+        self.gen2 = nn.Sequential(*[self.lstm]).cuda()
+
+        return None
 
     def gen2_forward(self, x, noise):
         # noise = noise * 60
@@ -382,7 +384,7 @@ class cyclegan(nn.Module):
         # return x
 
         x = x.view(self.batch_size, self.seg, 75)
-        x = self.gen1(x)
+        x = self.gen2(x)
         x = x.reshape(self.batch_size, -1)
 
         return x
@@ -435,7 +437,7 @@ class cyclegan(nn.Module):
         self.desc2_1.apply(self.xavier_init)
         self.desc2_2.apply(self.xavier_init)
 
-    def calculate_accuracy(self, class_correct, class_total):
+    def calculate_accuracy(self, class_total, class_correct,  mode):
         acc_sum = 0
         for i in range(len(classes)):
             if class_total[i] == 0:
@@ -443,29 +445,26 @@ class cyclegan(nn.Module):
             else:
                 class_accuracy = 100 * class_correct[i] / class_total[i]
             acc_sum += class_accuracy
-            print(
-                '%d Accuracy of %5s : %2d %% and total count : %2d ' % (i, classes[i], class_accuracy, class_total[i]))
+            print(mode + ' %d Accuracy of %5s : %2d %% and total count : %2d ' % (i, classes[i], class_accuracy, class_total[i]))
         print('=' * 89)
         print('Mean Average Accuracy of Camera View : %2f %%' % (acc_sum / 60))
         print('=' * 89)
 
         return acc_sum / len(classes)
 
-    def class_accuracy(self, pred, labels):
+    def class_accuracy(self, pred, labels, class_total, class_correct):
 
         c = (pred == labels).squeeze()
-        class_correct = list(0. for i in range(60))
-        class_total = list(0. for i in range(60))
 
         for i in range(labels.shape[0]):
             label = labels[i]
             class_correct[label] += c[i].item()
             class_total[label] = class_total[label] + 1
 
-        return self.calculate_accuracy(class_correct, class_total)
+        return class_total, class_correct
 
 
-    def forward(self, subject_1, subject_2, labels, noise, eval_mode=False):
+    def forward(self, subject_1, subject_2, labels, noise, class_total, class_correct, eval_mode=False):
 
         generate_fake_z2 = self.gen1_forward(subject_1, noise)  # generate S1 -> S2
         generate_fake_z1 = self.gen2_forward(subject_2, noise)  # generate S2 -> S1
@@ -544,8 +543,6 @@ class cyclegan(nn.Module):
         G1_loss = G1_loss_dis + self.lamda_g_smi * G1_loss_fea
         G2_loss = G2_loss_dis + self.lamda_g_smi * G2_loss_fea
 
-
-
         # if eval_mode: # need to calculate Test losses as well
             # compute accuracies for classifiers
         acc_c1_real = torch.mean(torch.eq(torch.argmax(C_1_real_logit, 1), torch.argmax(labels, 1)).float())
@@ -556,7 +553,10 @@ class cyclegan(nn.Module):
         C_r1r2_logit, C_r1r2_prob = self.vrdn_forward(C_1_real_prob, C_2_real_prob)  # real z1 + real z2
         acc_te_r1r2 = torch.mean(torch.eq(torch.argmax(C_r1r2_prob, 1), torch.argmax(labels, 1)).float())
         # calculate per class accuracy
-        _ = self.class_accuracy(torch.argmax(C_r1r2_prob, 1), torch.argmax(labels, 1))
+        y_true = torch.argmax(labels, 1).detach().cpu().numpy()
+        y_pred = torch.argmax(C_r1r2_prob, 1).detach().cpu().numpy()
+        class_total, class_correct = self.class_accuracy(y_pred, y_true, class_total, class_correct)
+
         # y_pred = [classes[i] for i in torch.argmax(C_r1r2_prob, 1).detach().cpu().numpy()]
         # y_true = [classes[i] for i in torch.argmax(labels, 1).detach().cpu().numpy()]
         # draw_confusion_matrix(y_true, y_pred, 'test', np.unique(y_true))
@@ -569,50 +569,45 @@ class cyclegan(nn.Module):
             # first is rgb-d, rgb, depth => s1-s2, s1, s2
             # return acc_te_r1r2, acc_te_r1f2, acc_te_f1r2, acc_c1_real, acc_c1_fake, acc_c2_real, acc_c2_fake, G1_loss, G2_loss, D1_loss, D2_loss, E_1_loss, E_2_loss, C_g_loss_sum, C_1_loss, C_2_loss
 
-        return acc_te_r1r2, acc_te_r1f2, acc_te_f1r2, acc_c1_real, acc_c1_fake, acc_c2_real, acc_c2_fake, G1_loss, G2_loss, D1_loss, D2_loss, E_1_loss, E_2_loss, C_g_loss_sum, C_1_loss, C_2_loss
-
-        # return G1_loss, G2_loss, D1_loss, D2_loss, E_1_loss, E_2_loss, C_g_loss_sum, C_1_loss, C_2_loss
+        return acc_te_r1r2, acc_te_r1f2, acc_te_f1r2, acc_c1_real, acc_c1_fake, acc_c2_real, acc_c2_fake, G1_loss, \
+               G2_loss, D1_loss, D2_loss, E_1_loss, E_2_loss, C_g_loss_sum, C_1_loss, C_2_loss, class_total, class_correct
 
     def compute_generator_loss(self, fake, real_subj):
 
         return torch.mean(torch.norm(fake-real_subj, p=None))
 
-
     def compute_classifier_loss(self, real_logits, fake_logits, labels):
 
-        return self.c_rf * torch.mean(torch.square(real_logits - labels)) + (1.0 - self.c_rf) * torch.mean(torch.square(fake_logits - labels))
-        #return self.c_rf * self.gans_criterion(real_logits, labels) + (1.0 - self.c_rf) * self.gans_criterion(fake_logits, labels)
+        return self.c_rf * torch.mean(torch.square(real_logits - labels)) + (1.0 - self.c_rf) * \
+               torch.mean(torch.square(fake_logits - labels))
 
     def train_(self, epochs, train_loader, test_loader=None, out_dir=''):
 
-        # unique_labels = []
+        # visual = Draw3DSkeleton(save_path='./temp')
+        # visual1 = Draw3DSkeleton(save_path='./temp_y')
         # for train_x, train_y, labels in train_loader:
-        #     for x in range(self.batch_size):
-        #         cur_label = torch.argmax(labels[x])
-        #         if cur_label not in unique_labels:
-        #             self.visualize_ex(train_x[x].numpy(), './temp', torch.argmax(labels[x]))
-        #             unique_labels.append(cur_label)
-        #         else:
-        #             continue
-        #     if len(unique_labels) == 60:
-        #         break
+        #     visual.visual_skeleton_batch(train_x.numpy(), torch.argmax(labels, 1).numpy(), self.seg)
+        #     visual1.visual_skeleton_batch(train_y.numpy(), torch.argmax(labels, 1).numpy(), self.seg)
+        #     break
         # import sys
         # sys.exit(0)
         wandb.init(project="Cycle-Gan", reinit=True)
 
         best_val_acc = 0.0
-        module_names = [self.encoder1, self.encoder2, self.classifier1, self.classifier2, self.desc1_1, self.desc1_2,
-                        self.desc2_1, self.desc2_2, self.vrdn, self.gen1, self.gen2]
-        module_str = ['encoder_1', 'encoder_2', 'classifier_1', 'classifier_2', 'desc1_1',
-                      'desc1_2', 'desc2_1', 'desc2_2', 'vrdn', 'gen1', 'gen2']
+        module_names = [self.encoder1, self.encoder2, self.desc1_1, self.desc1_2,
+                        self.desc2_1, self.desc2_2, self.vrdn, self.gen1, self.gen2, self.classifier1, self.classifier2]
+        module_str = ['encoder_1', 'encoder_2', 'desc1_1',
+                      'desc1_2', 'desc2_1', 'desc2_2', 'vrdn', 'gen1', 'gen2', 'classifier_1', 'classifier_2']
         optimizer_list = []
 
         # # define optimizers
-        for module, m_str in zip(module_names, module_str):
+        for module, m_str in zip(module_names[:-2], module_str[:-2]):
             if m_str == 'gen1':
                 optimizer_list.append(torch.optim.Adam(module.parameters(), lr=3e-5))
             elif m_str == 'gen2':
                 optimizer_list.append(torch.optim.Adam(module.parameters(), lr=3e-5))
+            elif m_str == 'vrdn':
+                optimizer_list.append(torch.optim.Adam(module.parameters(), lr=1e-3))
             else:
                 optimizer_list.append(torch.optim.Adam(module.parameters(), lr=self.lr))
 
@@ -620,6 +615,9 @@ class cyclegan(nn.Module):
 
             acc_te_r1r2_num, acc_te_r1f2_num, acc_te_f1r2_num, acc_c1_r_sum, acc_c1_f_sum, acc_c2_r_sum, acc_c2_f_sum = [], [], [], [], [], [], []
             G1_loss, G2_loss, D1_loss, D2_loss, E_1_loss, E_2_loss, C_g_loss_sum, C_1_loss_sum, C_2_loss_sum = [], [], [], [], [], [], [], [], []
+
+            class_correct = list(0. for i in range(60))
+            class_total = list(0. for i in range(60))
 
             # train_x, train_y, labels = train_loader.train_next_batch(self.batch_size)
             for i, (train_x, train_y, labels) in tqdm(enumerate(train_loader)):
@@ -629,8 +627,9 @@ class cyclegan(nn.Module):
 
                 noise_sample = torch.tensor(self.sample_Noise(self.batch_size, self.noise_dim), dtype=torch.float)
                 sub_1_acc, sub_2_acc, sub_1_2_acc, acc_c1_r, acc_c1_f, acc_c2_r, \
-                acc_c2_f, g1_l, g2_l, d1_l, d2_l, e1_l, e2_l, cg_l, c_1_l, c_2_l = self.forward(train_x.to(self.device), train_y.to(self.device),
-                                                                        labels.to(self.device), noise_sample.to(device))
+                acc_c2_f, g1_l, g2_l, d1_l, d2_l, e1_l, e2_l, cg_l, c_1_l, c_2_l, class_total, class_correct = \
+                    self.forward(train_x.to(self.device), train_y.to(self.device), labels.to(self.device),
+                                 noise_sample.to(device), class_total, class_correct)
 
                 g1_l.backward(retain_graph=True)
                 g2_l.backward(retain_graph=True)
@@ -639,8 +638,8 @@ class cyclegan(nn.Module):
                 e1_l.backward(retain_graph=True)
                 e2_l.backward(retain_graph=True)
                 cg_l.backward(retain_graph=True)
-                c_1_l.backward(retain_graph=True)
-                c_2_l.backward(retain_graph=True)
+                # c_1_l.backward(retain_graph=True)
+                # c_2_l.backward(retain_graph=True)
 
                 acc_te_r1r2_num.append(sub_1_acc.item())
                 acc_te_r1f2_num.append(sub_2_acc.item())
@@ -659,34 +658,42 @@ class cyclegan(nn.Module):
                 C_1_loss_sum.append(c_1_l.item())
                 C_2_loss_sum.append(c_2_l.item())
 
-
-
                 for op in optimizer_list:
                     op.step()
 
 
-            print('Epoch = ', epoch, '  Loss_G_1 = %.4f' % np.mean(G1_loss), ' Loss_G_2 = %.4f' % np.mean(G2_loss),
+            print('\n\n[TRAIN] Epoch = ', epoch, '  Loss_G_1 = %.4f' % np.mean(G1_loss), ' Loss_G_2 = %.4f' % np.mean(G2_loss),
                   '  Loss_D_1 = %.4f' % np.mean(D1_loss), '  Loss_D_2 = %.4f' % np.mean(D2_loss),
                   ' Loss_E_1 = %.4f' % np.mean(E_1_loss),
                   '  Loss_E_2 = %.4f' % np.mean(E_2_loss), '  Loss_VRDCN = %.4f' % np.mean(C_g_loss_sum),
                   '  Loss_C_1 = %.4f' % np.mean(C_1_loss_sum), '  Loss_C_2 = %.4f' % np.mean(C_2_loss_sum))
-            print('\n Epoch = ', epoch, '  Accuracy:  Subject_1_2 = %.4f' % np.mean(acc_te_r1r2_num),
+            print('\n[TRAIN] Epoch = ', epoch, '  Accuracy:  Subject_1_2 = %.4f' % np.mean(acc_te_r1r2_num),
                       ' Subject_1 = %.4f' % np.mean(acc_te_r1f2_num), '  Subject_2 = %.4f' % np.mean(acc_te_f1r2_num)
                       , ' C_1_R = %.4f' % np.mean(acc_c1_r_sum), ' C_1_F = %.4f' % np.mean(acc_c1_f_sum),
                       ' C_2_R = %.4f' % np.mean(acc_c2_r_sum), ' C_2_F = %.4f' % np.mean(acc_c2_f_sum))
 
-            if epoch % 5 == 0 and epoch != 0:
+            log_dict = {'Generator_1': np.mean(G1_loss), 'Generator_2': np.mean(G2_loss), 'Desc_1': np.mean(D1_loss)
+                , 'Desc2': np.mean(D2_loss), 'E1': np.mean(E_1_loss), "E2": np.mean(E_2_loss),
+                        'VRDN': np.mean(C_g_loss_sum),
+                        'C1': np.mean(C_1_loss_sum), "C2": np.mean(C_2_loss_sum)}
+            wandb.log(log_dict)
+            _ = self.calculate_accuracy(class_total, class_correct, '[TRAIN]')
+
+            if epoch % 5 == 0: #and epoch != 0:
 
                 with torch.no_grad():
-
+                    class_correct_eval = list(0. for i in range(60))
+                    class_total_eval = list(0. for i in range(60))
                     acc_te_r1r2_num, acc_te_r1f2_num, acc_te_f1r2_num, acc_c1_r_sum, acc_c1_f_sum, acc_c2_r_sum, acc_c2_f_sum= [], [], [], [], [], [], []
                     G1_loss, G2_loss, D1_loss, D2_loss, E_1_loss, E_2_loss, C_g_loss_sum, C_1_loss_sum, C_2_loss_sum = [], [], [], [], [], [], [], [], []
 
                     for test_x, test_y, test_labels in test_loader:
                         noise_sample = torch.tensor(self.sample_Noise(self.batch_size, self.noise_dim), dtype=torch.float)
                         sub_1_acc, sub_2_acc, sub_1_2_acc, acc_c1_r, acc_c1_f, acc_c2_r, \
-                        acc_c2_f, g1_l, g2_l, d1_l, d2_l, e1_l, e2_l, cg_l, c_1_l, c_2_l = self.forward(test_x.to(self.device), test_y.to(self.device),
-                                                                         test_labels.to(self.device), noise_sample.to(device), eval_mode=True)
+                        acc_c2_f, g1_l, g2_l, d1_l, d2_l, e1_l, e2_l, cg_l, c_1_l, c_2_l, class_total_eval, class_correct_eval \
+                            = self.forward(test_x.to(self.device), test_y.to(self.device), test_labels.to(self.device),
+                                           noise_sample.to(device), class_total_eval, class_correct_eval, eval_mode=True)
+
                         acc_te_r1r2_num.append(sub_1_acc.item())
                         acc_te_r1f2_num.append(sub_2_acc.item())
                         acc_te_f1r2_num.append(sub_1_2_acc.item())
@@ -704,21 +711,23 @@ class cyclegan(nn.Module):
                         C_1_loss_sum.append(c_1_l.item())
                         C_2_loss_sum.append(c_2_l.item())
 
-                    print('\n\n TESTING TIME !!! \n\n Epoch = ', epoch, '  Accuracy:  Subject_1_2 = %.4f' % np.mean(acc_te_r1r2_num),
+                    print('\n [TEST] Epoch = ', epoch, '  Accuracy:  Subject_1_2 = %.4f' % np.mean(acc_te_r1r2_num),
                           ' Subject_1 = %.4f' % np.mean(acc_te_r1f2_num), '  Subject_2 = %.4f' % np.mean(acc_te_f1r2_num)
                           , ' C_1_R = %.4f' % np.mean(acc_c1_r_sum), ' C_1_F = %.4f' % np.mean(acc_c1_f_sum),
                           ' C_2_R = %.4f' % np.mean(acc_c2_r_sum), ' C_2_F = %.4f' % np.mean(acc_c2_f_sum))
                         # print('Epoch = ', epoch, '  Accuracy:  Subject_1 = %.4f' % sub_1_acc, ' Subject_2 = %.4f' % sub_2_acc,
                         #       '  Subject_1_2 = %.4f' % sub_1_2_acc)
-                    print(' Epoch = ', epoch, '  Loss_G_1 = %.4f' % np.mean(G1_loss),
+                    print('\n [TEST] Epoch = ', epoch, '  Loss_G_1 = %.4f' % np.mean(G1_loss),
                           ' Loss_G_2 = %.4f' % np.mean(G2_loss),
                           '  Loss_D_1 = %.4f' % np.mean(D1_loss), '  Loss_D_2 = %.4f' % np.mean(D2_loss),
                           ' Loss_E_1 = %.4f' % np.mean(E_1_loss),
                           '  Loss_E_2 = %.4f' % np.mean(E_2_loss), '  Loss_VRDCN = %.4f' % np.mean(C_g_loss_sum),
                           '  Loss_C_1 = %.4f' % np.mean(C_1_loss_sum), '  Loss_C_2 = %.4f' % np.mean(C_2_loss_sum))
 
-                    acc_dict = {'Subject_1_2': np.mean(acc_te_r1r2_num), 'Subject_1': np.mean(acc_te_r1f2_num), 'Subject_2':np.mean(acc_te_f1r2_num)}
+                    acc_dict = {'Subject_1_2': np.mean(acc_te_r1r2_num), 'Subject_1': np.mean(acc_te_r1f2_num),
+                                'Subject_2':np.mean(acc_te_f1r2_num)}
                     wandb.log(acc_dict)
+                    _ = self.calculate_accuracy(class_total_eval, class_correct_eval, '[TEST]')
 
                     if np.mean(acc_te_r1r2_num) > best_val_acc:
                         best_val_acc = np.mean(acc_te_r1r2_num)
@@ -729,12 +738,6 @@ class cyclegan(nn.Module):
                                 'model_state_dict': module.state_dict(),
                                 'optimizer_state_dict': op.state_dict(),
                             }, os.path.join(out_dir, name))
-
-            log_dict = {'Generator_1': np.mean(G1_loss), 'Generator_2': np.mean(G2_loss), 'Desc_1': np.mean(D1_loss)
-                        , 'Desc2': np.mean(D2_loss), 'E1': np.mean(E_1_loss), "E2": np.mean(E_2_loss), 'VRDN':np.mean(C_g_loss_sum),
-                        'C1':np.mean(C_1_loss_sum), "C2":np.mean(C_2_loss_sum)}
-            wandb.log(log_dict)
-
 
 classes = ["drink water", "eat meal", "brush teeth", "brush hair", "drop", "pick up", "throw", "sit down", "stand up",
            "clapping", "reading", "writing", "tear up paper", "put on jacket", "take off jacket", "put on a shoe",
@@ -747,23 +750,24 @@ classes = ["drink water", "eat meal", "brush teeth", "brush hair", "drop", "pick
            "pat on back", "point finger", "hugging", "giving object", "touch pocket", "shaking hands",
            "walking towards", "walking apart"]
 
-seg=50
-max_epochs=100
-batch_size = 32
+seg=25
+max_epochs=300
+batch_size = 1024
 learning_rate = 1e-4
-eval_batch_size = 32
+eval_batch_size = 1024
 num_classes = len(classes)
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 kwargs = {'num_workers': 2, 'pin_memory': True} if device == 'cuda' else {}
-out_path = './temp'
+out_path = '/home/ahmed/Desktop/model_experiments/lstm_split'
 if not os.path.exists(out_path):
     os.mkdir(out_path)
 
-
-train_dataset = custom_dataloaders.pytorch_dataloader(batch_size, train_path='/home/ahmed/Desktop/datasets/skeleton_dataset/cross_subject_data/trans_test_data.pkl', seg=seg)
+train_path ='/home/ahmed/Desktop/datasets/skeleton_dataset/cross_subject_data/trans_train_data.pkl'
+test_path = '/home/ahmed/Desktop/datasets/skeleton_dataset/cross_subject_data/trans_test_data.pkl'
+train_dataset = custom_dataloaders.pytorch_dataloader(batch_size, train_path=train_path, seg=seg, split_=True)
 train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=False, drop_last=True, **kwargs)
-# eval_dataset = custom_dataloaders.pytorch_dataloader(eval_batch_size, test_path='/home/hashmi/Desktop/dataset/NTURGBD-60_120/ntu_60/cross_subject_data/trans_test_data.pkl', is_train=False, seg=seg)
-# eval_loader = DataLoader(eval_dataset, batch_size=eval_batch_size, shuffle=False, drop_last=True, **kwargs)
+eval_dataset = custom_dataloaders.pytorch_dataloader(eval_batch_size, test_path=test_path, is_train=False, seg=seg, split_=True)
+eval_loader = DataLoader(eval_dataset, batch_size=eval_batch_size, shuffle=False, drop_last=True, **kwargs)
 
 model = cyclegan(num_classes, batch_size, learning_rate, device, seg=seg).to(device)
-model.train_(max_epochs, train_loader, out_dir=out_path)
+model.train_(max_epochs, train_loader, eval_loader, out_dir=out_path)

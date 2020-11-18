@@ -182,12 +182,14 @@ class pytorch_dataloader(Dataset):
             second_ex = np.array(second_ex)
             first_ex, _ = self.normalize([first_ex], cur_label)
             second_ex, _ = self.normalize([second_ex], cur_label)
+            # print("Running wihtout norm")
 
-        else:
+        else: # split is true
             first_ex = np.array(self.input_features[random.choice(indices)]['input'])
+            second_ex = first_ex[first_ex.shape[0] // 2:, :]
+            first_ex = first_ex[:first_ex.shape[0] // 2, :]
             first_ex, _ = self.normalize([first_ex], cur_label)
-            second_ex = first_ex[first_ex.shape[0]//2:, :]
-            first_ex = first_ex[:first_ex.shape[0]//2, :]
+            second_ex, _ = self.normalize([second_ex], cur_label)
 
         if self.reshape:
             first_ex = np.reshape(first_ex, self.reshape_shape)
@@ -217,11 +219,13 @@ class pytorch_dataloader(Dataset):
             second_ex = np.array(self.test_features[random.choice(indices)]['input'])
             first_ex, _ = self.normalize([first_ex], cur_label)
             second_ex, _ = self.normalize([second_ex], cur_label)
-        else:
+
+        else: # when split is True
             first_ex = np.array(self.test_features[random.choice(indices)]['input'])
-            first_ex, _ = self.normalize([first_ex], cur_label)
             second_ex = first_ex[first_ex.shape[0] // 2:, :]
             first_ex = first_ex[:first_ex.shape[0] // 2, :]
+            first_ex, _ = self.normalize([first_ex], cur_label)
+            second_ex, _ = self.normalize([second_ex], cur_label)
 
         if self.reshape:
             first_ex = np.reshape(first_ex, self.reshape_shape)

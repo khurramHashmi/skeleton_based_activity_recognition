@@ -39,7 +39,8 @@ class Draw3DSkeleton(object):
         if not os.path.exists(self.save_path):
             os.mkdir(self.save_path)
 
-        self.xyz = self.read_xyz(self.file)
+        if file is not None:
+            self.xyz = self.read_xyz(self.file)
 
         self.init_horizon = init_horizon
         self.init_vertical = init_vertical
@@ -248,14 +249,13 @@ class Draw3DSkeleton(object):
                     raise Exception("rotation angle should be less than 180.")
 
                 else:
-                    print(" Angle : ",self.x_rotation)
                     data = self._rotation(data, self.x_rotation, self.y_rotation)
 
             data = self._normal_skeleton(data)
             data = data[0]
 
             # show every frame 3d skeleton
-            for frame_idx in range(0, data.shape[0], 10):
+            for frame_idx in range(0, data.shape[0], 2):
 
                 plt.cla()
                 plt.title("Frame: {}".format(frame_idx))
@@ -279,7 +279,7 @@ class Draw3DSkeleton(object):
                 ax.set_zlabel('Y')
 
                 if self.save_path is not None:
-                    save_pth = os.path.join(self.save_path, '{}_{}.png'.format(classes[cur_label],frame_idx))
+                    save_pth = os.path.join(self.save_path, '{}_{}.png'.format(classes[label],frame_idx))
                     plt.savefig(save_pth)
 
 if __name__ == '__main__':
