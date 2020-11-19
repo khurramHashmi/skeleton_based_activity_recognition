@@ -227,7 +227,7 @@ class Draw3DSkeleton(object):
             if len(unique_labels) == 60:
                 break
 
-    def visual_skeleton_batch(self, batch, labels, seg):
+    def visual_skeleton_batch(self, batch, labels, seg, filename=None):
 
         fig = plt.figure()
         ax = Axes3D(fig)
@@ -235,7 +235,7 @@ class Draw3DSkeleton(object):
         ax.view_init(self.init_vertical, self.init_horizon)
         plt.ion()
 
-        for coord, label in zip(batch, labels):
+        for counter, (coord, label) in enumerate(zip(batch, labels)):
 
             temp = coord
             temp = np.reshape(temp, (seg, 25, 3))
@@ -255,7 +255,7 @@ class Draw3DSkeleton(object):
             data = data[0]
 
             # show every frame 3d skeleton
-            for frame_idx in range(0, data.shape[0], 2):
+            for frame_idx in range(0, data.shape[0], 5):
 
                 plt.cla()
                 plt.title("Frame: {}".format(frame_idx))
@@ -279,7 +279,10 @@ class Draw3DSkeleton(object):
                 ax.set_zlabel('Y')
 
                 if self.save_path is not None:
-                    save_pth = os.path.join(self.save_path, '{}_{}.png'.format(classes[label],frame_idx))
+                    if filename is None:
+                        save_pth = os.path.join(self.save_path, '{}_{}.png'.format(classes[label],frame_idx))
+                    else:
+                        save_pth = os.path.join(self.save_path, '{}_{}_{}_{}.png'.format(filename, counter, classes[label], frame_idx))
                     plt.savefig(save_pth)
 
 if __name__ == '__main__':

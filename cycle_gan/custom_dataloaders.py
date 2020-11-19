@@ -262,7 +262,7 @@ class pytorch_dataloader(Dataset):
             self.sample_train_num = len(self.input_features)
 
         else:
-
+            print(self.test_path)
             self.test_features = pickle.load(open(self.test_path, "rb"))
             self.test_data_label = []
             for j in self.test_features:

@@ -13,7 +13,7 @@ from online_triplet_loss.losses import *
 from mpl_toolkits.mplot3d import Axes3D
 from visual_skeleton_3d import Draw3DSkeleton
 
-# os.environ["WANDB_MODE"] = "dryrun"
+os.environ["WANDB_MODE"] = "dryrun"
 os.environ["WANDB_API_KEY"] = "cbf5ed4387d24dbdda68d6de22de808c592f792e"
 os.environ["WANDB_ENTITY"] = "khurram"
 
@@ -172,8 +172,8 @@ class cyclegan(nn.Module):
         self.sigmoid = nn.Sigmoid()
 
         self.softmax_criterion = nn.CrossEntropyLoss()
-        self.reconstruction_criterion = nn.L1Loss()
-        self.gans_criterion = nn.MSELoss()
+        self.reconstruction_criterion = nn.L1Loss(reduction='sum')
+        self.gans_criterion = nn.MSELoss(reduction='sum')
         self.binary_criterion = nn.BCEWithLogitsLoss()
 
         self.triplet_criterion = HardTripletLoss()
@@ -581,16 +581,8 @@ class cyclegan(nn.Module):
         return self.c_rf * torch.mean(torch.square(real_logits - labels)) + (1.0 - self.c_rf) * \
                torch.mean(torch.square(fake_logits - labels))
 
-    def train_(self, epochs, train_loader, test_loader=None, out_dir=''):
+    def train_(self, epochs, train_loader=None, test_loader=None, out_dir='', is_eval=False):
 
-        # visual = Draw3DSkeleton(save_path='./temp')
-        # visual1 = Draw3DSkeleton(save_path='./temp_y')
-        # for train_x, train_y, labels in train_loader:
-        #     visual.visual_skeleton_batch(train_x.numpy(), torch.argmax(labels, 1).numpy(), self.seg)
-        #     visual1.visual_skeleton_batch(train_y.numpy(), torch.argmax(labels, 1).numpy(), self.seg)
-        #     break
-        # import sys
-        # sys.exit(0)
         wandb.init(project="Cycle-Gan", reinit=True)
 
         best_val_acc = 0.0
@@ -598,9 +590,8 @@ class cyclegan(nn.Module):
                         self.desc2_1, self.desc2_2, self.vrdn, self.gen1, self.gen2, self.classifier1, self.classifier2]
         module_str = ['encoder_1', 'encoder_2', 'desc1_1',
                       'desc1_2', 'desc2_1', 'desc2_2', 'vrdn', 'gen1', 'gen2', 'classifier_1', 'classifier_2']
-        optimizer_list = []
-
         # # define optimizers
+        optimizer_list = []
         for module, m_str in zip(module_names[:-2], module_str[:-2]):
             if m_str == 'gen1':
                 optimizer_list.append(torch.optim.Adam(module.parameters(), lr=3e-5))
@@ -611,133 +602,161 @@ class cyclegan(nn.Module):
             else:
                 optimizer_list.append(torch.optim.Adam(module.parameters(), lr=self.lr))
 
-        for epoch in range(epochs):
+        if not is_eval:
 
-            acc_te_r1r2_num, acc_te_r1f2_num, acc_te_f1r2_num, acc_c1_r_sum, acc_c1_f_sum, acc_c2_r_sum, acc_c2_f_sum = [], [], [], [], [], [], []
-            G1_loss, G2_loss, D1_loss, D2_loss, E_1_loss, E_2_loss, C_g_loss_sum, C_1_loss_sum, C_2_loss_sum = [], [], [], [], [], [], [], [], []
+            for epoch in range(epochs):
 
-            class_correct = list(0. for i in range(60))
-            class_total = list(0. for i in range(60))
+                acc_te_r1r2_num, acc_te_r1f2_num, acc_te_f1r2_num, acc_c1_r_sum, acc_c1_f_sum, acc_c2_r_sum, acc_c2_f_sum = [], [], [], [], [], [], []
+                G1_loss, G2_loss, D1_loss, D2_loss, E_1_loss, E_2_loss, C_g_loss_sum, C_1_loss_sum, C_2_loss_sum = [], [], [], [], [], [], [], [], []
 
-            # train_x, train_y, labels = train_loader.train_next_batch(self.batch_size)
-            for i, (train_x, train_y, labels) in tqdm(enumerate(train_loader)):
+                class_correct = list(0. for i in range(60))
+                class_total = list(0. for i in range(60))
 
-                for op in optimizer_list:
-                    op.zero_grad()
+                # train_x, train_y, labels = train_loader.train_next_batch(self.batch_size)
+                for i, (train_x, train_y, labels) in tqdm(enumerate(train_loader)):
 
-                noise_sample = torch.tensor(self.sample_Noise(self.batch_size, self.noise_dim), dtype=torch.float)
-                sub_1_acc, sub_2_acc, sub_1_2_acc, acc_c1_r, acc_c1_f, acc_c2_r, \
-                acc_c2_f, g1_l, g2_l, d1_l, d2_l, e1_l, e2_l, cg_l, c_1_l, c_2_l, class_total, class_correct = \
-                    self.forward(train_x.to(self.device), train_y.to(self.device), labels.to(self.device),
-                                 noise_sample.to(device), class_total, class_correct)
+                    for op in optimizer_list:
+                        op.zero_grad()
 
-                g1_l.backward(retain_graph=True)
-                g2_l.backward(retain_graph=True)
-                d1_l.backward(retain_graph=True)
-                d2_l.backward(retain_graph=True)
-                e1_l.backward(retain_graph=True)
-                e2_l.backward(retain_graph=True)
-                cg_l.backward(retain_graph=True)
-                # c_1_l.backward(retain_graph=True)
-                # c_2_l.backward(retain_graph=True)
+                    noise_sample = torch.tensor(self.sample_Noise(self.batch_size, self.noise_dim), dtype=torch.float)
+                    sub_1_acc, sub_2_acc, sub_1_2_acc, acc_c1_r, acc_c1_f, acc_c2_r, \
+                    acc_c2_f, g1_l, g2_l, d1_l, d2_l, e1_l, e2_l, cg_l, c_1_l, c_2_l, class_total, class_correct = \
+                        self.forward(train_x.to(self.device), train_y.to(self.device), labels.to(self.device),
+                                     noise_sample.to(device), class_total, class_correct)
 
-                acc_te_r1r2_num.append(sub_1_acc.item())
-                acc_te_r1f2_num.append(sub_2_acc.item())
-                acc_te_f1r2_num.append(sub_1_2_acc.item())
-                acc_c1_r_sum.append(acc_c1_r.item())
-                acc_c1_f_sum.append(acc_c1_f.item())
-                acc_c2_r_sum.append(acc_c2_r.item())
-                acc_c2_f_sum.append(acc_c2_f.item())
-                G1_loss.append(g1_l.item())
-                G2_loss.append(g2_l.item())
-                D1_loss.append(d1_l.item())
-                D2_loss.append(d2_l.item())
-                E_1_loss.append(e1_l.item())
-                E_2_loss.append(e2_l.item())
-                C_g_loss_sum.append(cg_l.item())
-                C_1_loss_sum.append(c_1_l.item())
-                C_2_loss_sum.append(c_2_l.item())
+                    g1_l.backward(retain_graph=True)
+                    g2_l.backward(retain_graph=True)
+                    d1_l.backward(retain_graph=True)
+                    d2_l.backward(retain_graph=True)
+                    e1_l.backward(retain_graph=True)
+                    e2_l.backward(retain_graph=True)
+                    cg_l.backward(retain_graph=True)
+                    # c_1_l.backward(retain_graph=True)
+                    # c_2_l.backward(retain_graph=True)
 
-                for op in optimizer_list:
-                    op.step()
+                    acc_te_r1r2_num.append(sub_1_acc.item())
+                    acc_te_r1f2_num.append(sub_2_acc.item())
+                    acc_te_f1r2_num.append(sub_1_2_acc.item())
+                    acc_c1_r_sum.append(acc_c1_r.item())
+                    acc_c1_f_sum.append(acc_c1_f.item())
+                    acc_c2_r_sum.append(acc_c2_r.item())
+                    acc_c2_f_sum.append(acc_c2_f.item())
+                    G1_loss.append(g1_l.item())
+                    G2_loss.append(g2_l.item())
+                    D1_loss.append(d1_l.item())
+                    D2_loss.append(d2_l.item())
+                    E_1_loss.append(e1_l.item())
+                    E_2_loss.append(e2_l.item())
+                    C_g_loss_sum.append(cg_l.item())
+                    C_1_loss_sum.append(c_1_l.item())
+                    C_2_loss_sum.append(c_2_l.item())
+
+                    for op in optimizer_list:
+                        op.step()
 
 
-            print('\n\n[TRAIN] Epoch = ', epoch, '  Loss_G_1 = %.4f' % np.mean(G1_loss), ' Loss_G_2 = %.4f' % np.mean(G2_loss),
-                  '  Loss_D_1 = %.4f' % np.mean(D1_loss), '  Loss_D_2 = %.4f' % np.mean(D2_loss),
-                  ' Loss_E_1 = %.4f' % np.mean(E_1_loss),
-                  '  Loss_E_2 = %.4f' % np.mean(E_2_loss), '  Loss_VRDCN = %.4f' % np.mean(C_g_loss_sum),
-                  '  Loss_C_1 = %.4f' % np.mean(C_1_loss_sum), '  Loss_C_2 = %.4f' % np.mean(C_2_loss_sum))
-            print('\n[TRAIN] Epoch = ', epoch, '  Accuracy:  Subject_1_2 = %.4f' % np.mean(acc_te_r1r2_num),
-                      ' Subject_1 = %.4f' % np.mean(acc_te_r1f2_num), '  Subject_2 = %.4f' % np.mean(acc_te_f1r2_num)
-                      , ' C_1_R = %.4f' % np.mean(acc_c1_r_sum), ' C_1_F = %.4f' % np.mean(acc_c1_f_sum),
-                      ' C_2_R = %.4f' % np.mean(acc_c2_r_sum), ' C_2_F = %.4f' % np.mean(acc_c2_f_sum))
-
-            log_dict = {'Generator_1': np.mean(G1_loss), 'Generator_2': np.mean(G2_loss), 'Desc_1': np.mean(D1_loss)
-                , 'Desc2': np.mean(D2_loss), 'E1': np.mean(E_1_loss), "E2": np.mean(E_2_loss),
-                        'VRDN': np.mean(C_g_loss_sum),
-                        'C1': np.mean(C_1_loss_sum), "C2": np.mean(C_2_loss_sum)}
-            wandb.log(log_dict)
-            _ = self.calculate_accuracy(class_total, class_correct, '[TRAIN]')
-
-            if epoch % 5 == 0: #and epoch != 0:
-
-                with torch.no_grad():
-                    class_correct_eval = list(0. for i in range(60))
-                    class_total_eval = list(0. for i in range(60))
-                    acc_te_r1r2_num, acc_te_r1f2_num, acc_te_f1r2_num, acc_c1_r_sum, acc_c1_f_sum, acc_c2_r_sum, acc_c2_f_sum= [], [], [], [], [], [], []
-                    G1_loss, G2_loss, D1_loss, D2_loss, E_1_loss, E_2_loss, C_g_loss_sum, C_1_loss_sum, C_2_loss_sum = [], [], [], [], [], [], [], [], []
-
-                    for test_x, test_y, test_labels in test_loader:
-                        noise_sample = torch.tensor(self.sample_Noise(self.batch_size, self.noise_dim), dtype=torch.float)
-                        sub_1_acc, sub_2_acc, sub_1_2_acc, acc_c1_r, acc_c1_f, acc_c2_r, \
-                        acc_c2_f, g1_l, g2_l, d1_l, d2_l, e1_l, e2_l, cg_l, c_1_l, c_2_l, class_total_eval, class_correct_eval \
-                            = self.forward(test_x.to(self.device), test_y.to(self.device), test_labels.to(self.device),
-                                           noise_sample.to(device), class_total_eval, class_correct_eval, eval_mode=True)
-
-                        acc_te_r1r2_num.append(sub_1_acc.item())
-                        acc_te_r1f2_num.append(sub_2_acc.item())
-                        acc_te_f1r2_num.append(sub_1_2_acc.item())
-                        acc_c1_r_sum.append(acc_c1_r.item())
-                        acc_c1_f_sum.append(acc_c1_f.item())
-                        acc_c2_r_sum.append(acc_c2_r.item())
-                        acc_c2_f_sum.append(acc_c2_f.item())
-                        G1_loss.append(g1_l.item())
-                        G2_loss.append(g2_l.item())
-                        D1_loss.append(d1_l.item())
-                        D2_loss.append(d2_l.item())
-                        E_1_loss.append(e1_l.item())
-                        E_2_loss.append(e2_l.item())
-                        C_g_loss_sum.append(cg_l.item())
-                        C_1_loss_sum.append(c_1_l.item())
-                        C_2_loss_sum.append(c_2_l.item())
-
-                    print('\n [TEST] Epoch = ', epoch, '  Accuracy:  Subject_1_2 = %.4f' % np.mean(acc_te_r1r2_num),
+                print('\n\n[TRAIN] Epoch = ', epoch, '  Loss_G_1 = %.4f' % np.mean(G1_loss), ' Loss_G_2 = %.4f' % np.mean(G2_loss),
+                      '  Loss_D_1 = %.4f' % np.mean(D1_loss), '  Loss_D_2 = %.4f' % np.mean(D2_loss),
+                      ' Loss_E_1 = %.4f' % np.mean(E_1_loss),
+                      '  Loss_E_2 = %.4f' % np.mean(E_2_loss), '  Loss_VRDCN = %.4f' % np.mean(C_g_loss_sum),
+                      '  Loss_C_1 = %.4f' % np.mean(C_1_loss_sum), '  Loss_C_2 = %.4f' % np.mean(C_2_loss_sum))
+                print('\n[TRAIN] Epoch = ', epoch, '  Accuracy:  Subject_1_2 = %.4f' % np.mean(acc_te_r1r2_num),
                           ' Subject_1 = %.4f' % np.mean(acc_te_r1f2_num), '  Subject_2 = %.4f' % np.mean(acc_te_f1r2_num)
                           , ' C_1_R = %.4f' % np.mean(acc_c1_r_sum), ' C_1_F = %.4f' % np.mean(acc_c1_f_sum),
                           ' C_2_R = %.4f' % np.mean(acc_c2_r_sum), ' C_2_F = %.4f' % np.mean(acc_c2_f_sum))
-                        # print('Epoch = ', epoch, '  Accuracy:  Subject_1 = %.4f' % sub_1_acc, ' Subject_2 = %.4f' % sub_2_acc,
-                        #       '  Subject_1_2 = %.4f' % sub_1_2_acc)
-                    print('\n [TEST] Epoch = ', epoch, '  Loss_G_1 = %.4f' % np.mean(G1_loss),
-                          ' Loss_G_2 = %.4f' % np.mean(G2_loss),
-                          '  Loss_D_1 = %.4f' % np.mean(D1_loss), '  Loss_D_2 = %.4f' % np.mean(D2_loss),
-                          ' Loss_E_1 = %.4f' % np.mean(E_1_loss),
-                          '  Loss_E_2 = %.4f' % np.mean(E_2_loss), '  Loss_VRDCN = %.4f' % np.mean(C_g_loss_sum),
-                          '  Loss_C_1 = %.4f' % np.mean(C_1_loss_sum), '  Loss_C_2 = %.4f' % np.mean(C_2_loss_sum))
 
-                    acc_dict = {'Subject_1_2': np.mean(acc_te_r1r2_num), 'Subject_1': np.mean(acc_te_r1f2_num),
-                                'Subject_2':np.mean(acc_te_f1r2_num)}
-                    wandb.log(acc_dict)
-                    _ = self.calculate_accuracy(class_total_eval, class_correct_eval, '[TEST]')
+                log_dict = {'Generator_1': np.mean(G1_loss), 'Generator_2': np.mean(G2_loss), 'Desc_1': np.mean(D1_loss)
+                    , 'Desc2': np.mean(D2_loss), 'E1': np.mean(E_1_loss), "E2": np.mean(E_2_loss),
+                            'VRDN': np.mean(C_g_loss_sum),
+                            'C1': np.mean(C_1_loss_sum), "C2": np.mean(C_2_loss_sum)}
+                wandb.log(log_dict)
+                _ = self.calculate_accuracy(class_total, class_correct, '[TRAIN]')
 
-                    if np.mean(acc_te_r1r2_num) > best_val_acc:
-                        best_val_acc = np.mean(acc_te_r1r2_num)
-                        best_epoch = epoch
-                        for op, module, name in zip(optimizer_list, module_names, module_str):
-                            torch.save({
-                                'epoch': best_epoch,
-                                'model_state_dict': module.state_dict(),
-                                'optimizer_state_dict': op.state_dict(),
-                            }, os.path.join(out_dir, name))
+                if epoch % 5 == 0: #and epoch != 0:
+
+                    with torch.no_grad():
+                        class_correct_eval = list(0. for i in range(60))
+                        class_total_eval = list(0. for i in range(60))
+                        acc_te_r1r2_num, acc_te_r1f2_num, acc_te_f1r2_num, acc_c1_r_sum, acc_c1_f_sum, acc_c2_r_sum, acc_c2_f_sum= [], [], [], [], [], [], []
+                        G1_loss, G2_loss, D1_loss, D2_loss, E_1_loss, E_2_loss, C_g_loss_sum, C_1_loss_sum, C_2_loss_sum = [], [], [], [], [], [], [], [], []
+
+                        for test_x, test_y, test_labels in test_loader:
+                            noise_sample = torch.tensor(self.sample_Noise(self.batch_size, self.noise_dim), dtype=torch.float)
+                            sub_1_acc, sub_2_acc, sub_1_2_acc, acc_c1_r, acc_c1_f, acc_c2_r, \
+                            acc_c2_f, g1_l, g2_l, d1_l, d2_l, e1_l, e2_l, cg_l, c_1_l, c_2_l, class_total_eval, class_correct_eval \
+                                = self.forward(test_x.to(self.device), test_y.to(self.device), test_labels.to(self.device),
+                                               noise_sample.to(device), class_total_eval, class_correct_eval, eval_mode=True)
+
+                            acc_te_r1r2_num.append(sub_1_acc.item())
+                            acc_te_r1f2_num.append(sub_2_acc.item())
+                            acc_te_f1r2_num.append(sub_1_2_acc.item())
+                            acc_c1_r_sum.append(acc_c1_r.item())
+                            acc_c1_f_sum.append(acc_c1_f.item())
+                            acc_c2_r_sum.append(acc_c2_r.item())
+                            acc_c2_f_sum.append(acc_c2_f.item())
+                            G1_loss.append(g1_l.item())
+                            G2_loss.append(g2_l.item())
+                            D1_loss.append(d1_l.item())
+                            D2_loss.append(d2_l.item())
+                            E_1_loss.append(e1_l.item())
+                            E_2_loss.append(e2_l.item())
+                            C_g_loss_sum.append(cg_l.item())
+                            C_1_loss_sum.append(c_1_l.item())
+                            C_2_loss_sum.append(c_2_l.item())
+
+                        print('\n [TEST] Epoch = ', epoch, '  Accuracy:  Subject_1_2 = %.4f' % np.mean(acc_te_r1r2_num),
+                              ' Subject_1 = %.4f' % np.mean(acc_te_r1f2_num), '  Subject_2 = %.4f' % np.mean(acc_te_f1r2_num)
+                              , ' C_1_R = %.4f' % np.mean(acc_c1_r_sum), ' C_1_F = %.4f' % np.mean(acc_c1_f_sum),
+                              ' C_2_R = %.4f' % np.mean(acc_c2_r_sum), ' C_2_F = %.4f' % np.mean(acc_c2_f_sum))
+                            # print('Epoch = ', epoch, '  Accuracy:  Subject_1 = %.4f' % sub_1_acc, ' Subject_2 = %.4f' % sub_2_acc,
+                            #       '  Subject_1_2 = %.4f' % sub_1_2_acc)
+                        print('\n [TEST] Epoch = ', epoch, '  Loss_G_1 = %.4f' % np.mean(G1_loss),
+                              ' Loss_G_2 = %.4f' % np.mean(G2_loss),
+                              '  Loss_D_1 = %.4f' % np.mean(D1_loss), '  Loss_D_2 = %.4f' % np.mean(D2_loss),
+                              ' Loss_E_1 = %.4f' % np.mean(E_1_loss),
+                              '  Loss_E_2 = %.4f' % np.mean(E_2_loss), '  Loss_VRDCN = %.4f' % np.mean(C_g_loss_sum),
+                              '  Loss_C_1 = %.4f' % np.mean(C_1_loss_sum), '  Loss_C_2 = %.4f' % np.mean(C_2_loss_sum))
+
+                        acc_dict = {'Subject_1_2': np.mean(acc_te_r1r2_num), 'Subject_1': np.mean(acc_te_r1f2_num),
+                                    'Subject_2':np.mean(acc_te_f1r2_num)}
+                        wandb.log(acc_dict)
+                        _ = self.calculate_accuracy(class_total_eval, class_correct_eval, '[TEST]')
+
+                        if np.mean(acc_te_r1r2_num) > best_val_acc:
+                            best_val_acc = np.mean(acc_te_r1r2_num)
+                            best_epoch = epoch
+                            for op, module, name in zip(optimizer_list, module_names, module_str):
+                                torch.save({
+                                    'epoch': best_epoch,
+                                    'model_state_dict': module.state_dict(),
+                                    'optimizer_state_dict': op.state_dict(),
+                                }, os.path.join(out_dir, name))
+        else:
+            print('Loading Model from checkpoint')
+            for name, module in zip(module_str[:-2], module_names[:-2]):
+                checkpoint = torch.load(os.path.join(out_dir, name))
+                module.load_state_dict(checkpoint['model_state_dict'])
+            print('Weights loaded from {}'.format(out_dir))
+
+            visual = Draw3DSkeleton(save_path='./temp')
+            counter = 0
+            unique = []
+            with torch.no_grad():
+                for train_x, train_y, labels in test_loader:
+                    cur_label = torch.argmax(labels)
+                    if cur_label not in unique:
+                        unique.append(cur_label)
+                        train_x = train_x.view(1, self.seg, 75)
+                        reconstructed_img = self.gen1(train_x.to(self.device))
+                        print('Loss for class {} is {}'.format(cur_label, self.reconstruction_criterion(reconstructed_img,
+                                                                                                        train_x.to(self.device))))
+                    else:
+                        if len(unique) == 60:
+                            break
+                        continue
+                    # visual.visual_skeleton_batch(reconstructed_img.detach().cpu().numpy(),
+                    #                              torch.argmax(labels, 1).numpy(), self.seg, '{}'.format(counter))
+
 
 classes = ["drink water", "eat meal", "brush teeth", "brush hair", "drop", "pick up", "throw", "sit down", "stand up",
            "clapping", "reading", "writing", "tear up paper", "put on jacket", "take off jacket", "put on a shoe",
@@ -754,7 +773,7 @@ seg=25
 max_epochs=300
 batch_size = 1024
 learning_rate = 1e-4
-eval_batch_size = 1024
+eval_batch_size = 1
 num_classes = len(classes)
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 kwargs = {'num_workers': 2, 'pin_memory': True} if device == 'cuda' else {}
@@ -764,10 +783,11 @@ if not os.path.exists(out_path):
 
 train_path ='/home/ahmed/Desktop/datasets/skeleton_dataset/cross_subject_data/trans_train_data.pkl'
 test_path = '/home/ahmed/Desktop/datasets/skeleton_dataset/cross_subject_data/trans_test_data.pkl'
-train_dataset = custom_dataloaders.pytorch_dataloader(batch_size, train_path=train_path, seg=seg, split_=True)
-train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=False, drop_last=True, **kwargs)
+# train_dataset = custom_dataloaders.pytorch_dataloader(batch_size, train_path=train_path, seg=seg, split_=True)
+# train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=False, drop_last=True, **kwargs)
 eval_dataset = custom_dataloaders.pytorch_dataloader(eval_batch_size, test_path=test_path, is_train=False, seg=seg, split_=True)
 eval_loader = DataLoader(eval_dataset, batch_size=eval_batch_size, shuffle=False, drop_last=True, **kwargs)
 
 model = cyclegan(num_classes, batch_size, learning_rate, device, seg=seg).to(device)
-model.train_(max_epochs, train_loader, eval_loader, out_dir=out_path)
+# model.train_(max_epochs, train_loader, eval_loader, out_dir=out_path)
+model.train_(max_epochs, test_loader=eval_loader, out_dir=out_path, is_eval=True)
