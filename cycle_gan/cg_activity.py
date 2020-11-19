@@ -578,8 +578,11 @@ class cyclegan(nn.Module):
 
     def compute_classifier_loss(self, real_logits, fake_logits, labels):
 
-        return self.c_rf * torch.mean(torch.square(real_logits - labels)) + (1.0 - self.c_rf) * \
-               torch.mean(torch.square(fake_logits - labels))
+        return self.c_rf * self.softmax_criterion(real_logits, torch.argmax(labels, 1)) + (1.0 - self.c_rf) * self.softmax_criterion(fake_logits, torch.argmax(labels, 1))
+
+        # return self.c_rf * torch.mean(torch.square(real_logits - labels)) + (1.0 - self.c_rf) * \
+        #        torch.mean(torch.square(fake_logits - labels))
+
 
     def train_(self, epochs, train_loader=None, test_loader=None, out_dir='', is_eval=False):
 
@@ -773,7 +776,7 @@ seg=25
 max_epochs=300
 batch_size = 1024
 learning_rate = 1e-4
-eval_batch_size = 1
+eval_batch_size = 1024
 num_classes = len(classes)
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 kwargs = {'num_workers': 2, 'pin_memory': True} if device == 'cuda' else {}
