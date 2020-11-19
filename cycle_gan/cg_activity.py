@@ -13,7 +13,7 @@ from online_triplet_loss.losses import *
 from mpl_toolkits.mplot3d import Axes3D
 from visual_skeleton_3d import Draw3DSkeleton
 
-# os.environ["WANDB_MODE"] = "dryrun"
+os.environ["WANDB_MODE"] = "dryrun"
 os.environ["WANDB_API_KEY"] = "cbf5ed4387d24dbdda68d6de22de808c592f792e"
 os.environ["WANDB_ENTITY"] = "khurram"
 
@@ -484,6 +484,7 @@ class cyclegan(nn.Module):
         # C_1_loss = self.softmax_criterion(C_1_real_logit, C_1_fake_logit, labels)
         # C_2_loss = self.softmax_criterion(C_2_real_logit, C_2_fake_logit, labels)
         C_1_loss = self.compute_classifier_loss(C_1_real_logit, C_1_fake_logit, labels)
+
         C_2_loss = self.compute_classifier_loss(C_2_real_logit, C_2_fake_logit, labels)
 
         # calculate classiciation loss for Correlation Classififer
@@ -578,8 +579,11 @@ class cyclegan(nn.Module):
 
     def compute_classifier_loss(self, real_logits, fake_logits, labels):
 
-        return self.c_rf * torch.mean(torch.square(real_logits - labels)) + (1.0 - self.c_rf) * \
-               torch.mean(torch.square(fake_logits - labels))
+        return self.c_rf * self.softmax_criterion(real_logits, torch.argmax(labels, 1)) + (1.0 - self.c_rf) * self.softmax_criterion(fake_logits, torch.argmax(labels, 1))
+
+        # return self.c_rf * torch.mean(torch.square(real_logits - labels)) + (1.0 - self.c_rf) * \
+        #        torch.mean(torch.square(fake_logits - labels))
+
 
     def train_(self, epochs, train_loader, test_loader=None, out_dir=''):
 
@@ -750,7 +754,7 @@ classes = ["drink water", "eat meal", "brush teeth", "brush hair", "drop", "pick
            "pat on back", "point finger", "hugging", "giving object", "touch pocket", "shaking hands",
            "walking towards", "walking apart"]
 
-seg=25
+seg=50
 max_epochs=300
 batch_size = 1024
 learning_rate = 1e-4
@@ -758,15 +762,15 @@ eval_batch_size = 1024
 num_classes = len(classes)
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 kwargs = {'num_workers': 2, 'pin_memory': True} if device == 'cuda' else {}
-out_path = '/home/ahmed/Desktop/model_experiments/lstm_split'
+out_path = '/home/hashmi/Desktop/model_experiments/cg_lstm_'
 if not os.path.exists(out_path):
     os.mkdir(out_path)
 
-train_path ='/home/ahmed/Desktop/datasets/skeleton_dataset/cross_subject_data/trans_train_data.pkl'
-test_path = '/home/ahmed/Desktop/datasets/skeleton_dataset/cross_subject_data/trans_test_data.pkl'
-train_dataset = custom_dataloaders.pytorch_dataloader(batch_size, train_path=train_path, seg=seg, split_=True)
+train_path ='/home/hashmi/Desktop/dataset/NTURGBD-60_120/ntu_60/cross_subject_data/trans_train_data.pkl'
+test_path = '/home/hashmi/Desktop/dataset/NTURGBD-60_120/ntu_60/cross_subject_data/trans_test_data.pkl'
+train_dataset = custom_dataloaders.pytorch_dataloader(batch_size, train_path=train_path, seg=seg, split_=False)
 train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=False, drop_last=True, **kwargs)
-eval_dataset = custom_dataloaders.pytorch_dataloader(eval_batch_size, test_path=test_path, is_train=False, seg=seg, split_=True)
+eval_dataset = custom_dataloaders.pytorch_dataloader(eval_batch_size, test_path=test_path, is_train=False, seg=seg, split_=False)
 eval_loader = DataLoader(eval_dataset, batch_size=eval_batch_size, shuffle=False, drop_last=True, **kwargs)
 
 model = cyclegan(num_classes, batch_size, learning_rate, device, seg=seg).to(device)
