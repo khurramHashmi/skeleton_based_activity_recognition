@@ -13,7 +13,7 @@ from online_triplet_loss.losses import *
 from mpl_toolkits.mplot3d import Axes3D
 from visual_skeleton_3d import Draw3DSkeleton
 
-os.environ["WANDB_MODE"] = "dryrun"
+# os.environ["WANDB_MODE"] = "dryrun"
 os.environ["WANDB_API_KEY"] = "cbf5ed4387d24dbdda68d6de22de808c592f792e"
 os.environ["WANDB_ENTITY"] = "khurram"
 
@@ -597,9 +597,9 @@ class cyclegan(nn.Module):
         optimizer_list = []
         for module, m_str in zip(module_names[:-2], module_str[:-2]):
             if m_str == 'gen1':
-                optimizer_list.append(torch.optim.Adam(module.parameters(), lr=3e-5))
+                optimizer_list.append(torch.optim.Adam(module.parameters(), lr=3e-4))
             elif m_str == 'gen2':
-                optimizer_list.append(torch.optim.Adam(module.parameters(), lr=3e-5))
+                optimizer_list.append(torch.optim.Adam(module.parameters(), lr=3e-4))
             elif m_str == 'vrdn':
                 optimizer_list.append(torch.optim.Adam(module.parameters(), lr=1e-3))
             else:
@@ -784,13 +784,13 @@ out_path = '/home/ahmed/Desktop/model_experiments/lstm_split'
 if not os.path.exists(out_path):
     os.mkdir(out_path)
 
-train_path ='/home/ahmed/Desktop/datasets/skeleton_dataset/cross_subject_data/trans_train_data.pkl'
-test_path = '/home/ahmed/Desktop/datasets/skeleton_dataset/cross_subject_data/trans_test_data.pkl'
-# train_dataset = custom_dataloaders.pytorch_dataloader(batch_size, train_path=train_path, seg=seg, split_=True)
-# train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=False, drop_last=True, **kwargs)
+train_path ='/home/ahmed/Desktop/datasets/cross_subject_data/trans_train_data.pkl'
+test_path = '/home/ahmed/Desktop/datasets/cross_subject_data/trans_test_data.pkl'
+train_dataset = custom_dataloaders.pytorch_dataloader(batch_size, train_path=train_path, seg=seg, split_=True)
+train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=False, drop_last=True, **kwargs)
 eval_dataset = custom_dataloaders.pytorch_dataloader(eval_batch_size, test_path=test_path, is_train=False, seg=seg, split_=True)
 eval_loader = DataLoader(eval_dataset, batch_size=eval_batch_size, shuffle=False, drop_last=True, **kwargs)
 
 model = cyclegan(num_classes, batch_size, learning_rate, device, seg=seg).to(device)
-# model.train_(max_epochs, train_loader, eval_loader, out_dir=out_path)
-model.train_(max_epochs, test_loader=eval_loader, out_dir=out_path, is_eval=True)
+model.train_(max_epochs, train_loader, eval_loader, out_dir=out_path)
+# model.train_(max_epochs, test_loader=eval_loader, out_dir=out_path, is_eval=True)

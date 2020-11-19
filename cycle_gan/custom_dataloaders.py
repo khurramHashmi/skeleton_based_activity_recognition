@@ -176,7 +176,7 @@ class pytorch_dataloader(Dataset):
         cur_label = torch.tensor(cur_label, dtype=torch.long)
 
         if not self.split_:
-            first_ex = self.input_features[random.choice(indices)]['input']
+            first_ex = self.input_features[sample_num]['input']
             first_ex = np.array(first_ex)
             second_ex = self.input_features[random.choice(indices)]['input']
             second_ex = np.array(second_ex)
@@ -185,7 +185,7 @@ class pytorch_dataloader(Dataset):
             # print("Running wihtout norm")
 
         else: # split is true
-            first_ex = np.array(self.input_features[random.choice(indices)]['input'])
+            first_ex = np.array(self.input_features[sample_num]['input'])
             second_ex = first_ex[first_ex.shape[0] // 2:, :]
             first_ex = first_ex[:first_ex.shape[0] // 2, :]
             first_ex, _ = self.normalize([first_ex], cur_label)
@@ -215,13 +215,13 @@ class pytorch_dataloader(Dataset):
         cur_label = torch.tensor(cur_label, dtype=torch.long)
 
         if not self.split_:
-            first_ex = np.array(self.test_features[random.choice(indices)]['input'])
+            first_ex = np.array(self.test_features[sample_num]['input'])
             second_ex = np.array(self.test_features[random.choice(indices)]['input'])
             first_ex, _ = self.normalize([first_ex], cur_label)
             second_ex, _ = self.normalize([second_ex], cur_label)
 
         else: # when split is True
-            first_ex = np.array(self.test_features[random.choice(indices)]['input'])
+            first_ex = np.array(self.test_features[sample_num]['input'])
             second_ex = first_ex[first_ex.shape[0] // 2:, :]
             first_ex = first_ex[:first_ex.shape[0] // 2, :]
             first_ex, _ = self.normalize([first_ex], cur_label)
