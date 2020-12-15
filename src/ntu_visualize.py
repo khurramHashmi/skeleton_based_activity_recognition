@@ -5,7 +5,6 @@ import argparse
 import numpy as np
 from tqdm import tqdm
 import matplotlib as mpl
-mpl.use('Agg')
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 from matplotlib.animation import FuncAnimation
@@ -172,12 +171,12 @@ def visualize(args):
         ax.set_zlim([-1,1])
 
         for i, j in bones:
-            # joint_locs = skeleton[:,[i,j]]
-            joint_locs = skeleton[[i, j], :]
+            joint_locs = skeleton[:,[i,j]]
+            # joint_locs = skeleton[[i, j], :]
 
             # plot them
-            # ax.plot(joint_locs[0],joint_locs[1],joint_locs[2], color='blue')
-            ax.plot(joint_locs[:, 0], joint_locs[:, 1], joint_locs[:, 2], color='blue')
+            ax.plot(joint_locs[0],joint_locs[1],joint_locs[2], color='blue')
+            # ax.plot(joint_locs[:, 0], joint_locs[:, 1], joint_locs[:, 2], color='blue')
 
 
         action_class = labels[1][index] + 1
@@ -186,8 +185,8 @@ def visualize(args):
         skeleton_index[0] += 1
         return ax
 
-    # for index in args.indices:
-    for index in range(0,60,10):
+    for index in args.indices:
+    # for index in range(0,60,10):
         mpl.rcParams['legend.fontsize'] = 10
         fig = plt.figure(figsize=(15,40))
         ax = fig.gca(projection='3d')
@@ -203,18 +202,19 @@ def visualize(args):
         print(f'Sample index: {index}\nAction: {action_class}-{action_name}\n')   # (C,T,V,M)
         # print(skeletons.shape)
         # Pick the first body to visualize
-        # skeleton1 = skeletons[..., 0]   # out (C,T,V)
+        skeleton1 = skeletons[..., 0]   # out (C,T,V)
         # print(skeleton1.shape)
         skeleton_index = [0]
-        # skeleton_frames = skeleton1.transpose(1,0,2)
+        skeleton1 = skeleton1.transpose(1,0,2)
 
-        ani = FuncAnimation(fig, animate, skeletons)
+        ani = FuncAnimation(fig, animate, skeleton1)
 
 
         plt.title('Skeleton {} from {} test data'.format(index, args.dataset))
         plt.waitforbuttonpress(0)  # this will wait for indefinite time
         plt.close(fig)
         plt.show()
+
 
 
 
@@ -226,9 +226,9 @@ if __name__ == '__main__':
                         choices=['ntu/xview', 'ntu/xsub', 'ntu120/xset', 'ntu120/xsub'],
                         default='ntu/xsub')
     parser.add_argument('-p', '--datapath',
-                        help='location of dataset numpy file', default="/home/hashmi/Desktop/dataset/activity_recognition/NTURGBD-60_120/ntu_60/cross_subject_data/trans_test_avatar.npy")
+                        help='location of dataset numpy file', default="/home/hashmi/Desktop/dataset/activity_recognition/ntu_msg3f/xsub/train_data_joint.npy")
     parser.add_argument('-l', '--labelpath',
-                        help='location of label pickle file', default="/home/hashmi/Desktop/dataset/activity_recognition/NTURGBD-60_120/ntu_60/cross_subject_data/val_label.pkl")
+                        help='location of label pickle file', default="/home/hashmi/Desktop/dataset/activity_recognition/ntu_msg3f/xsub/train_label.pkl")
     parser.add_argument('-i', '--indices',
                         type=int,
                         nargs='+',
