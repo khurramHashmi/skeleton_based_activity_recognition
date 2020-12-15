@@ -1,0 +1,11 @@
+opencv-python==4.2.0.34
+scikit-learn
+numpy
+matplotlib
+tqdm
+pandas
+torch==1.4.0
+#torchvision==0.5.0
+seaborn
+wandb
+opencv-python-headless
