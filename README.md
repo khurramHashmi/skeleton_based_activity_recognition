@@ -1,6 +1,9 @@
 # skeleton_based_activity_recognition
 Skeleton based activity recognition using Transformers
 
+Download the dataset from the following link:
+https://cloud.dfki.de/owncloud/index.php/s/E8WMyo6bLa24btq
+
 
 Docker file usage and run the following 3 commands.
 
