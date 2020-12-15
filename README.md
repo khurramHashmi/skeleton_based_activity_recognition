@@ -11,7 +11,6 @@ Docker file usage and run the following 3 commands.
 
 - docker run -it skel_image  (-it to run in an interactive container)
 
-- mv data_rgb data
 
 
 After that you are good to go.
