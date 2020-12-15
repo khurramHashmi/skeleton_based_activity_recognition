@@ -10,6 +10,7 @@ Docker file usage and run the following 3 commands.
 - docker build -t skel_image .
 
 - docker run -it skel_image  (-it to run in an interactive container)
+- docker run --runtime=nvidia -u $(id -u):$(id -g) -it -v $HOME:/home/ image_name ( to mount docker with your home directory)
 
 
 
