@@ -166,102 +166,60 @@ bone_pairs = {
 
 sit_stand_labels = []
 def visualize(args):
-    # data_path = args.datapath or './data/{}/val_data_joint.npy'.format(args.dataset)
-    # label_path = args.labelpath or './data/{}/val_label.pkl.npy'.format(args.dataset)
-    #
-    test_data = np.load(args.testdatapath, mmap_mode='r')
-    data = np.load(args.datapath, mmap_mode='r')
+
+    data = np.load(args.datapath, allow_pickle=True)
     with open(args.labelpath , 'rb') as f:
         labels = pickle.load(f)
 
     bones = bone_pairs[args.dataset]
     print(f'Dataset: {args.dataset}\n')
 
-    # def animate(skeleton):
-    #     ax.clear()
-    #     ax.set_xlim([-1,1])
-    #     ax.set_ylim([-1,1])
-    #     ax.set_zlim([-1,1])
-    #     for i, j in bones:
-    #         joint_locs = skeleton[:,[i,j]]
-    #         # plot them
-    #         ax.plot(joint_locs[0], joint_locs[1], joint_locs[2], color='blue')
-    #
-    #     action_class = labels[1][index] + 1
-    #     action_name = actions[action_class]
-    #     plt.title('Skeleton {} Frame #{} of 300 from {}\n (Action {}: {})'.format(index, skeleton_index[0], args.dataset, action_class, action_name))
-    #     skeleton_index[0] += 1
-    #     return ax
+    def animate(skeleton):
+        ax.clear()
+        ax.set_xlim([-1,1])
+        ax.set_ylim([-1,1])
+        ax.set_zlim([-1,1])
+        for i, j in bones:
+            joint_locs = skeleton[:,[i,j]]
+            # plot them
+            ax.plot(joint_locs[0], joint_locs[1], joint_locs[2], color='blue')
 
-    # stand_avatar = test_data[86][..., 0].transpose(1, 0, 2)
-    stand_avatar = test_data[86][..., 0].transpose(1, 0, 2)
-    sit_avatar = test_data[8][..., 0].transpose(1, 0, 2)
+        action_class = labels[index]+ 1
+        action_name = actions[action_class]
+        plt.title('Skeleton {} Frame #{} of 300 from {}\n (Action {}: {})'.format(index, skeleton_index[0], args.dataset, action_class, action_name))
+        skeleton_index[0] += 1
+        return ax
+
     skeleton_index = [0]
 
-    data_write = []
-    # for index in range(0, 420, 60):
-    # for index in tqdm(range(0, 5000)):
-    for index in tqdm(range(len(data))):
+    for index in (args.indices):
+    # for index in range(0, 500):
+    # for index in tqdm(range(len(data))):
 
-        action_class = labels[1][index]+ 1
-        # if action_class != 1:
-        #     continue
-        # mpl.rcParams['legend.fontsize'] = 10
-        # fig = plt.figure(figsize=(10, 35))
-        # ax = fig.gca(projection='3d')
-        # ax.set_xlim([-1, 1])
-        # ax.set_ylim([-1, 1])
-        # ax.set_zlim([-1, 1])
+        action_class = labels[index]+ 1
+        mpl.rcParams['legend.fontsize'] = 10
+        fig = plt.figure(figsize=(10, 35))
+        ax = fig.gca(projection='3d')
+        ax.set_xlim([-1, 1])
+        ax.set_ylim([-1, 1])
+        ax.set_zlim([-1, 1])
 
         skeletons = data[index]
-        # action_name = actions[action_class]
-        # print(f'Sample index: {index}\nAction: {action_class}-{action_name}\n')   # (C,T,V,M)
+        action_name = actions[action_class]
+        print(f'Sample index: {index}\nAction: {action_class}-{action_name}\n')   # (C,T,V,M)
 
         # Pick the first body to visualize
-        skeleton1 = skeletons[..., 0]   # out (C,T,V)
-        skeleton1 = skeleton1.transpose(1, 0, 2)
+        # skeleton1 = skeletons[..., 0]   # out (C,T,V)
+        # skeleton1 = skeleton1.transpose(1, 0, 2)
+
         skeleton_index = [0]
 
-        skeleton1 = reduce_sequence_to_single_activity(skeleton1)
+        ani = FuncAnimation(fig, animate, skeletons)
+        plt.title('Skeleton {} from {} test data'.format(index, args.dataset))
+        plt.waitforbuttonpress(0)  # this will wait for indefinite time
+        plt.close(fig)
+        plt.show()
 
-        avatar_stand = np.zeros_like(skeleton1)
-        avatar_sit = np.zeros_like(skeleton1)
-
-        avatar_stand[:, :, :] = stand_avatar[0, :, :]
-        avatar_sit[:, :, :] = sit_avatar[0, :, :]
-
-        for frame in range(1, len(skeleton1)):
-            # calculate distance
-            dist = ((skeleton1[frame, :, :]) - (skeleton1[frame-1, :, :])) # 25, 3
-            avatar_stand[frame, :, :] = avatar_stand[frame-1, :, :] + dist
-            avatar_sit[frame, :, :] = avatar_sit[frame - 1, :, :] + dist
-
-        # write avatar to numpy
-        data_write.append(avatar_stand)
-        data_write.append(avatar_sit)
-        sit_stand_labels.append(labels[1][index])
-        sit_stand_labels.append(labels[1][index])
-
-    np.save(os.path.join('/'.join(args.datapath.split('/')[:-1]), args.type + '.npy'), data_write)
-    with open('train_stand_sit_msg3_CS_label.pkl', 'wb') as f:
-        pickle.dump(sit_stand_labels, f)
-    #     ani = FuncAnimation(fig, animate, avatar_sit)
-    #     plt.title('Skeleton {} from {} test data'.format(index, args.dataset))
-    #     plt.waitforbuttonpress(0)  # this will wait for indefinite time
-    #     plt.close(fig)
-    #     plt.show()
-
-
-def reduce_sequence_to_single_activity(data_numpy):
-    first_frame = data_numpy[0]
-    check_count = 0
-    seq_length = 300
-    for iter in range(1, len(data_numpy)):
-        if iter != len(data_numpy) - 1 and check_count == 0:
-            if (data_numpy[iter] == first_frame).all():
-                seq_length = iter
-                check_count += 1
-    return data_numpy[:seq_length]
 
 if __name__ == '__main__':
     # NOTE:Only supports joint data
@@ -271,17 +229,13 @@ if __name__ == '__main__':
                         choices=['ntu/xview', 'ntu/xsub', 'ntu120/xset', 'ntu120/xsub'],
                         default='ntu/xsub')
     parser.add_argument('-p', '--datapath',
-                        help='location of dataset numpy file', default="/home/hashmi/Desktop/dataset/activity_recognition/ntu_msg3f/xsub/train_data_joint.npy")
+                        help='location of dataset numpy file', default="/home/hashmi/Desktop/dataset/activity_recognition/ntu_msg3f/xsub/train_avatar_sit_stand_msg3_CS.npy")
     parser.add_argument('-l', '--labelpath',
-                        help='location of label pickle file', default="/home/hashmi/Desktop/dataset/activity_recognition/ntu_msg3f/xsub/train_label.pkl")
-    parser.add_argument('-td', '--testdatapath',
-                        help='location of test data to get the base avatar', default="/home/hashmi/Desktop/dataset/activity_recognition/ntu_msg3f/xsub/val_data_joint.npy")
-    parser.add_argument('-t', '--type',
-                        help='type of file train or val', default="train_avatar_sit_stand_msg3_CS")
+                        help='location of label pickle file', default="/home/hashmi/Desktop/dataset/activity_recognition/ntu_msg3f/xsub/train_stand_sit_msg3_CS_label.pkl")
     parser.add_argument('-i', '--indices',
                         type=int,
                         nargs='+',
-                        default=[0],
+                        default=[0,1,2,3],
                         help='the indices of the samples to visualize')
 
     args = parser.parse_args()
