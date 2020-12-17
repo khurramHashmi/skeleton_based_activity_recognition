@@ -157,6 +157,7 @@ def visualize(args):
     data_path = args.datapath or './data/{}/val_data_joint.npy'.format(args.dataset)
     label_path = args.labelpath or './data/{}/val_label.pkl.npy'.format(args.dataset)
 
+    transformded_data = np.load(args.transformed_datapath, allow_pickle = True)
     data = np.load(data_path, allow_pickle = True)
     with open(label_path, 'rb') as f:
         labels = pickle.load(f, encoding='latin1')
@@ -164,35 +165,46 @@ def visualize(args):
     bones = bone_pairs[args.dataset]
     print(f'Dataset: {args.dataset}\n')
 
-    def animate(skeleton):
-        ax.clear()
-        ax.set_xlim([-1,1])
-        ax.set_ylim([-1,1])
-        ax.set_zlim([-1,1])
+    def animate_1(skeleton):
+        ax1.clear()
+        ax1.set_xlim([-1,1])
+        ax1.set_ylim([-1,1])
+        ax1.set_zlim([-1,1])
 
         for i, j in bones:
             joint_locs = skeleton[:,[i,j]]
-            # joint_locs = skeleton[[i, j], :]
-
             # plot them
-            ax.plot(joint_locs[0],joint_locs[1],joint_locs[2], color='blue')
-            # ax.plot(joint_locs[:, 0], joint_locs[:, 1], joint_locs[:, 2], color='blue')
-
+            ax1.plot(joint_locs[0],joint_locs[1],joint_locs[2], color='blue')
 
         action_class = labels[1][index] + 1
         action_name = actions[action_class]
         plt.title('Skeleton {} Frame #{} of 300 from {}\n (Action {}: {})'.format(index, skeleton_index[0], args.dataset, action_class, action_name))
         skeleton_index[0] += 1
-        return ax
+        return ax1
+
+    def animate_2(skeleton):
+        ax2.clear()
+        ax2.set_xlim([-1,1])
+        ax2.set_ylim([-1,1])
+        ax2.set_zlim([-1,1])
+
+        for i, j in bones:
+            joint_locs = skeleton[:,[i,j]]
+            # plot them
+            ax2.plot(joint_locs[0],joint_locs[1],joint_locs[2], color='blue')
+
+        action_class = labels[1][index] + 1
+        action_name = actions[action_class]
+        plt.title('Skeleton {} Frame #{} of 300 from {}\n (Action {}: {})'.format(index, skeleton_index[0], args.dataset, action_class, action_name))
+        skeleton_index[0] += 1
+        return ax1
 
     for index in args.indices:
     # for index in range(0,60,10):
         mpl.rcParams['legend.fontsize'] = 10
-        fig = plt.figure(figsize=(15,40))
-        ax = fig.gca(projection='3d')
-        ax.set_xlim([-1,1])
-        ax.set_ylim([-1,1])
-        ax.set_zlim([-1,1])
+        fig = plt.figure(figsize=(20,40))
+        ax1 = fig.add_subplot(2, 1, 1, projection='3d')
+        ax2 = fig.add_subplot(2, 2, 1, projection='3d')
 
 
         # get data
@@ -207,7 +219,8 @@ def visualize(args):
         skeleton_index = [0]
         skeleton1 = skeleton1.transpose(1,0,2)
 
-        ani = FuncAnimation(fig, animate, skeleton1)
+        an1 = FuncAnimation(fig, animate_1, skeleton1)
+        an2 = FuncAnimation(fig, animate_2, transformded_data[index])
 
 
         plt.title('Skeleton {} from {} test data'.format(index, args.dataset))
@@ -227,12 +240,14 @@ if __name__ == '__main__':
                         default='ntu/xsub')
     parser.add_argument('-p', '--datapath',
                         help='location of dataset numpy file', default="/home/hashmi/Desktop/dataset/activity_recognition/ntu_msg3f/xsub/train_data_joint.npy")
+    parser.add_argument('-tp', '--transformed_datapath',
+                        help='location of dataset numpy file', default="/home/hashmi/Desktop/dataset/activity_recognition/ntu_msg3f/xsub/train_avatar_sit_stand_msg3_CS.npy")
     parser.add_argument('-l', '--labelpath',
                         help='location of label pickle file', default="/home/hashmi/Desktop/dataset/activity_recognition/ntu_msg3f/xsub/train_label.pkl")
     parser.add_argument('-i', '--indices',
                         type=int,
                         nargs='+',
-                        default=[10,11,12,13,14,15],
+                        default=[0],
                         help='the indices of the samples to visualize')
 
     args = parser.parse_args()
