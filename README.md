@@ -21,6 +21,6 @@ Docker file usage and run the following 3 commands.
 - An example command for running the main.py is as follows :
 ### Example Command
 	python main.py --train_datapath /home/hashmi/Desktop/dataset/activity_recognition/ntu_msg3f/xsub/train_data_joint.npy --train_labelpath /home/hashmi/Desktop/dataset/activity_recognition/ntu_msg3f/xsub/train_label.pkl --val_datapath /home/hashmi/Desktop/dataset/activity_recognition/ntu_msg3f/xsub/val_data_joint.npy --val_labelpath /home/hashmi/Desktop/dataset/activity_recognition/ntu_msg3f/xsub/val_label.pkl 
-
+	
 
 
