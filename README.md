@@ -19,6 +19,7 @@ Docker file usage and run the following 3 commands.
 	python main.py --help
 - This will help you to see what are the required arguments and how you can give them into the training script.
 - An example command for running the main.py is as follows :
+### Example Command
 	python main.py 
 
 
