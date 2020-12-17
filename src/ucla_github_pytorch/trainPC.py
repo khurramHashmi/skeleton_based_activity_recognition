@@ -1,23 +1,11 @@
-# load file
-from torch.utils.data import Dataset, DataLoader,SubsetRandomSampler
 import os
-from torch.nn.utils import clip_grad_norm_
-from torch.nn.utils.rnn import pad_packed_sequence, pad_sequence, pack_padded_sequence
-from io import open
-import torch
-import torch.nn as nn
 from PCNet import *
 from utilitiesPC import *
 from torch import optim
-import torch.nn.functional as F
 from data_loaderPC import *
-import h5py
 import numpy as np
-
 import time
-import math
-from torch.utils.data import random_split
-import torchvision
+
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 def train_iter(input_tensor, seq_len,  model, optimizer, criterion_seq):
@@ -25,7 +13,6 @@ def train_iter(input_tensor, seq_len,  model, optimizer, criterion_seq):
 
     torch.cuda.empty_cache()
     en_hi, de_out = model(input_tensor, seq_len)
-
 
     mask = torch.zeros([len(seq_len), max(seq_len)]).to(device)
     for ith_batch in range(len(seq_len)):
@@ -45,7 +32,6 @@ def train_iter(input_tensor, seq_len,  model, optimizer, criterion_seq):
 def eval_iter(input_tensor, seq_len, model, criterion_seq):
 
     torch.cuda.empty_cache()
-    # input_tensor = torch.tensor(input_tensor, dtype=torch.float64, device='cuda:0')
     en_hi, de_out = model(input_tensor, seq_len)
 
     mask = torch.zeros([len(seq_len), max(seq_len)]).to(device)
@@ -54,6 +40,7 @@ def eval_iter(input_tensor, seq_len, model, criterion_seq):
     mask = torch.sum(mask, 1)
 
     total_loss = torch.sum(criterion_seq(de_out, input_tensor), 2)
+
     total_loss = torch.mean(torch.sum(total_loss, 1) / mask)
 
     return total_loss, en_hi
@@ -66,15 +53,12 @@ def evaluation(validation_loader, model, criterion_seq):
         input_tensor = eval_data.to(device)
         loss, hid = eval_iter(input_tensor, seq_len, model,
                                         criterion_seq)
-
         total_loss += loss.item()
 
     ave_loss = total_loss / (ind + 1)
     return ave_loss
 
 def test_extract_hidden(model, data_train, data_eval):
-    label_list_train = []
-    label_list_eval = []
 
     for ith, (ith_data, seq_len, label) in enumerate(data_train):
         input_tensor = ith_data.to(device)
@@ -185,8 +169,6 @@ def clustering_knn_acc(model, train_loader, eval_loader, criterion , num_epoches
     np_out_train, np_out_eval, au_l_train, au_l_eval = train_autoencoder(hi_train, hi_eval, label_train,
                       label_eval, middle_size, criterion, lambda1, num_epoches)
 
-
-       # print(hi_train.shape)
     knn_acc_1 = knn(hi_train, hi_eval, label_train, label_eval, nn=1)
     knn_acc_au = knn(np_out_train, np_out_eval, au_l_train, au_l_eval, nn=1)
 
@@ -212,10 +194,14 @@ def training(epoch, train_loader, eval_loader, print_every,
               start_epoch = int(item.split('epoch')[-1])
               epoch, ave_loss_train = load_checkpoint(model, optimizer, root_path + 'seq2seq_model/' + item)
 
+    if not os.path.exists(os.path.join(root_path,"seq2seq_model")):
+        os.mkdir(os.path.join(root_path,"seq2seq_model"))
+
     for ith_epoch in range(1, epoch + 1):
         if ith_epoch % print_every == 0 or ith_epoch == 1:
             ave_loss_train = evaluation(train_loader, model, criterion_seq)
             ave_loss_eval = evaluation(eval_loader,  model, criterion_seq)
+
             knn_acc_1, knn_acc_au = clustering_knn_acc(model, train_loader, eval_loader, criterion= auto_criterion)
 
             print('%s (%d %d%%) TrainLoss %.4f EvalLoss %.4f KnnACC W/O-AEC: %.4f W-AEC: %.4f' % (

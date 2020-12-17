@@ -57,9 +57,8 @@ def pad_collate(batch):
     label = [x[2] for x in batch]
     label = np.asarray(label)
 
-    # data = torch.tensor(data)
     xx_pad = pad_sequence(data, batch_first=True, padding_value=0)
-    #print(lens,label)
+
     return xx_pad, lens, label
 
 
@@ -125,7 +124,7 @@ class NTU_Dataloader(Dataset):
 class NTUDataset(Dataset):
     def __init__(self, data_path, label_path,
                  random_choose=False, random_shift=False, random_move=False,
-                 window_size=-1, normalization=False, debug=False, use_mmap=True, pickle=False):
+                 window_size=-1, normalization=False, debug=False, use_mmap=True, pickle=False, transformed_data=False):
         """
         :param data_path:
         :param label_path:
@@ -148,6 +147,7 @@ class NTUDataset(Dataset):
         self.normalization = normalization
         self.use_mmap = use_mmap
         self.pickle = pickle
+        self.transformed_data = transformed_data
         self.load_data()
         if normalization:
             self.get_mean_map()
@@ -209,63 +209,36 @@ class NTUDataset(Dataset):
         # if self.random_move:
         #     data_numpy = tools.random_move(data_numpy)
 
+
+        # Code FOR GET ITEM FOR NOW SINCE SEQUENCE IS ALREADY REDUCED
+        if self.transformed_data:
+            data_numpy = np.array(data_numpy).reshape(-1,75)
+            seq_length = len(data_numpy)
+            data_t = torch.tensor(data_numpy, dtype=torch.float32)
+
+            return data_t, seq_length, label
+
         #Code FOR GET ITEM IN MS-SGF DATA STARTS HERE
-        # data_numpy = np.array(data_numpy)
-        # data_numpy = data_numpy[:, :, :, [0]]
-        # data_numpy = np.moveaxis(data_numpy, [1, 0], [0, 2])
-        # data_numpy = np.reshape(data_numpy, (300, 75))
-        #
-        # seq_length = len(data_numpy)
-        #
-        # # Reducing the size of the video by
-        # # Pruning the sequence where repetition has started
-        # check_count = 0
-        # first_frame = data_numpy[0]
-        #
-        # for iter in range(len(data_numpy)):
-        #     if iter != len(data_numpy) - 1 and check_count == 0:
-        #         if (data_numpy[iter + 1] == first_frame).all():
-        #             seq_length = iter
-        #             check_count += 1
-        #
-        # #print(len(data_numpy))
-        # #print(seq_length)
-        # data_t = torch.tensor(data_numpy[:seq_length])
-        # return data_t, seq_length, label
-        #Code FOR GET ITEM IN MS-SGF DATA ENDS HERE
+        data_numpy = np.array(data_numpy)
+        data_numpy = data_numpy[:, :, :, [0]]
+        data_numpy = np.moveaxis(data_numpy, [1, 0], [0, 2])
+        data_numpy = np.reshape(data_numpy, (300, 75))
 
-
-        #ANOTHER CODE FOR COMBINED SIT_STAND AVATAR FOR MSG3D DATA STARTS HERE
-        # data_numpy = np.array(data_numpy)
-        # data_numpy = np.reshape(data_numpy, (300, 75))
-        #
-        # # Reducing the size of the video by
-        # # Pruning the sequence where repetition has started
-        # check_count = 0
-        # first_frame = data_numpy[0]
-        # seq_length = 300
-        #
-        # for iter in range(len(data_numpy)):
-        #     if iter != len(data_numpy) - 1 and check_count == 0:
-        #         if (data_numpy[iter + 1] == first_frame).all():
-        #             seq_length = iter
-        #             check_count += 1
-        #
-        # #print(len(data_numpy))
-        # #print(seq_length)
-        # data_t = torch.tensor(data_numpy[:seq_length])
-        # return data_t, seq_length, label
-        #CODE FOR COMBINED SIT_STAND AVATAR FOR MSG3D DATA ENDS HERE
-
-
-
-        #Code FOR GET ITEM FOR NOW SINCE SEQUENCE IS ALREADY REDUCED
-        data_numpy = np.array(data_numpy).reshape(-1,75)
+        # Reducing the size of the video by
+        # Pruning the sequence where repetition has started
         seq_length = len(data_numpy)
-        data_t = torch.tensor(data_numpy, dtype=torch.float32)
+        check_count = 0
+        first_frame = data_numpy[0]
+
+        for iter in range(1, len(data_numpy)):
+            if iter != len(data_numpy) - 1 and check_count == 0:
+                if (data_numpy[iter] == first_frame).all():
+                    seq_length = iter
+                    check_count += 1
+
+        data_t = torch.tensor(data_numpy[:seq_length])
 
         return data_t, seq_length, label
-
 
 
     def top_k(self, score, top_k):
