@@ -20,7 +20,7 @@ Docker file usage and run the following 3 commands.
 - This will help you to see what are the required arguments and how you can give them into the training script.
 - An example command for running the main.py is as follows :
 ### Example Command
-	python main.py --train_datapath /home/hashmi/Desktop/dataset/activity_recognition/ntu_msg3f/xsub/train_data_joint.npy --train_labelpath /home/hashmi/Desktop/dataset/activity_recognition/ntu_msg3f/xsub/train_label.pkl --val_datapath /home/hashmi/Desktop/dataset/activity_recognition/ntu_msg3f/xsub/val_data_joint.npy --val_labelpath /home/hashmi/Desktop/dataset/activity_recognition/ntu_msg3f/xsub/val_label.pkl 
+	python main.py --train_datapath ./xsub/train_data_joint.npy --train_labelpath ./xsub/train_label.pkl --val_datapath ./xsub/val_data_joint.npy --val_labelpath ./xsub/val_label.pkl
 	
 
 
