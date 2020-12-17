@@ -15,9 +15,9 @@ Docker file usage and run the following 3 commands.
 - If this command does not work, you need to install nvidia-docker
 
 ## Running the network
-- cd src
-- cd ucla_github_pytorch
-- python main.py --datase_path 
+  cd src
+	cd ucla_github_pytorch
+	python main.py --datase_path
 
 
 
