@@ -18,6 +18,20 @@ Docker file usage and run the following 3 commands.
 	cd ucla_github_pytorch
 	python main.py --help
 - This will help you to see what are the required arguments and how you can give them into the training script.
+## Command Template
+```
+python main.py
+  --train_datapath <location of train dataset numpy file>
+  --train_labelpath <location of train label pickle file>
+  --val_datapath <location of Validation dataset numpy file>
+  --val_labelpath <location of Validation label pickle file>
+  [--lr <base learning rate>]
+  [--batch-size <batch size>]
+  [--transformed_data <needs to be set to True if transformed data is used instead of standard>]
+  [--max_epochs <number of epochs for training>]
+  [--num_class <number of classes for the dataset>]
+```
+
 - An example command for running the main.py is as follows :
 ### Example Command
 	python main.py --train_datapath ./xsub/train_data_joint.npy --train_labelpath ./xsub/train_label.pkl --val_datapath ./xsub/val_data_joint.npy --val_labelpath ./xsub/val_label.pkl
