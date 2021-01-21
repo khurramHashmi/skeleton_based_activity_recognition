@@ -72,6 +72,21 @@ def train(args):
     optimizer = optim.Adam(filter(lambda p: p.requires_grad, model.parameters()), lr=learning_rate)
 
     criterion_seq = nn.L1Loss(reduction='none')
+# Testing piece of code
+    #
+    # zero_count = 0
+    # for ind, (eval_data, seq_len, label) in enumerate(eval_loader):
+    #     # print(eval_data.shape)
+    #     # print(seq_len)
+    #     # print(label)
+    #     if 0 in seq_len:
+    #         zero_count += 1
+    # print("ZERO COUNT :",zero_count)
+    # # if ind >= 0:
+    # import sys
+    #
+    # sys.exit(0)
+    # Testing piece of code ends here
 
     if not os.path.exists(os.path.join(root,"output")):
         os.mkdir(os.path.join(root,"output"))
@@ -80,8 +95,7 @@ def train(args):
 
     training(epoch, train_loader, eval_loader, print_every,
                  model, optimizer, criterion_seq,  file_output,
-                 root, network, en_num_layers, hidden_size, num_class=args.num_class,
-                 )
+                 root, network, en_num_layers, hidden_size,load_saved=args.is_resume, num_class=args.num_class, inference=args.inference)
 
     file_output.close()
 
@@ -94,11 +108,14 @@ if __name__ == '__main__':
     parser.add_argument('-tl', '--train_labelpath', help='location of train label pickle file', required=True)
     parser.add_argument('-vp', '--val_datapath', help='location of Validation dataset numpy file', required=True)
     parser.add_argument('-vl', '--val_labelpath', help='location of Validation label pickle file', required=True)
-    parser.add_argument('-td', '--transformed_data', help='needs to be set to True if transformed data is used instead of standard', default=False)
+    parser.add_argument('-td', '--transformed_data', help='True if transformed data is used instead of standard', default=False)
     parser.add_argument('-e', '--max_epochs', help='number of epochs for training', default=100)
-    parser.add_argument('-l', '--lr', help='learning rate value', default=0.0001)
+    parser.add_argument('-l', '--lr', type=float, help='learning rate value', default=0.001)
     parser.add_argument('-b', '--batch_size', help='learning rate value', default=32)
+    parser.add_argument('-ir', '--is_resume', help='True or false for reloading checkpoint', default=False)
+    parser.add_argument('-inf', '--inference', help='True or false for inference ', default=False)
     parser.add_argument('-nc', '--num_class', help='number of classes for the dataset', default=60)
+
 
     args = parser.parse_args()
 
