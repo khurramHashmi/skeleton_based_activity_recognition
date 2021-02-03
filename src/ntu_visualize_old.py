@@ -219,9 +219,8 @@ def visualize(args):
         skeleton_index = [0]
         skeleton1 = skeleton1.transpose(1,0,2)
 
-        print(skeleton1.shape)
         an1 = FuncAnimation(fig, animate_1, skeleton1)
-        # an2 = FuncAnimation(fig, animate_2, transformded_data[index])
+        an2 = FuncAnimation(fig, animate_2, transformded_data[index])
 
 
         plt.title('Skeleton {} from {} test data'.format(index, args.dataset))
@@ -242,7 +241,7 @@ if __name__ == '__main__':
     parser.add_argument('-p', '--datapath',
                         help='location of dataset numpy file', default="/home/hashmi/Desktop/dataset/activity_recognition/ntu_msg3f/xsub/train_data_joint.npy")
     parser.add_argument('-tp', '--transformed_datapath',
-                        help='location of dataset numpy file', default="/home/hashmi/Desktop/dataset/activity_recognition/ntu_msg3f/xsub/train_data_joint.npy")
+                        help='location of dataset numpy file', default="/home/hashmi/Desktop/dataset/activity_recognition/ntu_msg3f/xsub/train_avatar_sit_stand_msg3_CS.npy")
     parser.add_argument('-l', '--labelpath',
                         help='location of label pickle file', default="/home/hashmi/Desktop/dataset/activity_recognition/ntu_msg3f/xsub/train_label.pkl")
     parser.add_argument('-i', '--indices',

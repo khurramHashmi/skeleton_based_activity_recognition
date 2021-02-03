@@ -18,8 +18,8 @@ actions = {
     5: "drop",
     6: "pickup",
     7: "throw",
-    8: "sitting down",
-    9: "standing up (from sitting position)",
+    8: "sitting down", # problem
+    9: "standing up (from sitting position)", # problem
     10: "clapping",
     11: "reading",
     12: "writing",
@@ -34,10 +34,10 @@ actions = {
     21: "take off a hat/cap",
     22: "cheer up",
     23: "hand waving",
-    24: "kicking something",
+    24: "kicking something", # problem
     25: "reach into pocket",
-    26: "hopping (one foot jumping)",
-    27: "jump up",
+    26: "hopping (one foot jumping)", # problem
+    27: "jump up", # problem
     28: "make a phone call/answer phone",
     29: "playing with phone/tablet",
     30: "typing on a keyboard",
@@ -53,7 +53,7 @@ actions = {
     40: "cross hands in front (say stop)",
     41: "sneeze/cough",
     42: "staggering",
-    43: "falling",
+    43: "falling", # problem
     44: "touch head (headache)",
     45: "touch chest (stomachache/heart pain)",
     46: "touch back (backache)",
@@ -61,7 +61,7 @@ actions = {
     48: "nausea or vomiting condition",
     49: "use a fan (with hand or paper)/feeling warm",
     50: "punching/slapping other person",
-    51: "kicking other person",
+    51: "kicking other person", # problem
     52: "pushing other person",
     53: "pat on back of other person",
     54: "point finger at the other person",
@@ -69,8 +69,8 @@ actions = {
     56: "giving something to other person",
     57: "touch other person's pocket",
     58: "handshaking",
-    59: "walking towards each other",
-    60: "walking apart from each other",
+    59: "walking towards each other", # problem
+    60: "walking apart from each other", # problem
     61: "put on headphone",
     62: "take off headphone",
     63: "shoot at the basket",
@@ -140,6 +140,7 @@ ntu_skeleton_bone_pairs = tuple((i-1, j-1) for (i,j) in (
     (19, 18), (20, 19), (22, 23), (21, 21), (23, 8), (24, 25),(25, 12)
 ))
 
+
 bone_pairs = {
     'ntu/xview': ntu_skeleton_bone_pairs,
     'ntu/xsub': ntu_skeleton_bone_pairs,
@@ -152,31 +153,73 @@ bone_pairs = {
     'ntu': ntu_skeleton_bone_pairs,
 }
 
+def ntu_tranform_skeleton(test):
+    """
+    :param test: frames of skeleton within a video sample
+    """
+    remove_frame = False
+    test = np.asarray(test)
+    transform_test = []
+
+    d = test[0, 0:3]
+
+    v1 = test[0, 1 * 3:1 * 3 + 3] - test[0, 0 * 3:0 * 3 + 3]
+    v1 = v1 / np.linalg.norm(v1)
+
+    v2_ = test[0, 12 * 3:12 * 3 + 3] - test[0, 16 * 3:16 * 3 + 3]
+    proj_v2_v1 = np.dot(v1.T, v2_) * v1 / np.linalg.norm(v1)
+    v2 = v2_ - np.squeeze(proj_v2_v1)
+    v2 = v2 / np.linalg.norm(v2)
+
+    v3 = np.cross(v2, v1) / np.linalg.norm(np.cross(v2, v1))
+
+    v1 = np.reshape(v1, (3, 1))
+    v2 = np.reshape(v2, (3, 1))
+    v3 = np.reshape(v3, (3, 1))
+
+    R = np.hstack([v2, v3, v1])
+
+    for i in range(test.shape[0]):
+        xyzs = []
+        for j in range(25):
+            if test[i][j * 3:j * 3 + 3].all() == 0:
+                remove_frame = True
+                break
+            xyz = np.squeeze(np.matmul(np.linalg.inv(R), np.reshape(test[i][j * 3:j * 3 + 3] - d, (3, 1))))
+            xyzs.append(xyz)
+        if not remove_frame:
+            xyzs = np.reshape(np.asarray(xyzs), (-1, 75))
+            transform_test.append(xyzs)
+        else:
+            remove_frame = False
+
+    transform_test = np.squeeze(np.asarray(transform_test))
+    return transform_test.tolist()
 
 def visualize(args):
     data_path = args.datapath or './data/{}/val_data_joint.npy'.format(args.dataset)
     label_path = args.labelpath or './data/{}/val_label.pkl.npy'.format(args.dataset)
 
-    transformded_data = np.load(args.transformed_datapath, allow_pickle = True)
-    data = np.load(data_path, allow_pickle = True)
-    with open(label_path, 'rb') as f:
-        labels = pickle.load(f, encoding='latin1')
+    # transformded_data = np.load(args.transformed_datapath, allow_pickle=True)
+    # data = np.load(data_path, allow_pickle=True)
+    with open(args.datapath, 'rb') as f:
+        data = pickle.load(f, encoding='latin1')
 
     bones = bone_pairs[args.dataset]
     print(f'Dataset: {args.dataset}\n')
 
     def animate_1(skeleton):
         ax1.clear()
-        ax1.set_xlim([-1,1])
-        ax1.set_ylim([-1,1])
-        ax1.set_zlim([-1,1])
+        ax1.set_xlim([-1, 4])
+        ax1.set_ylim([-1, 4])
+        ax1.set_zlim([-1, 3])
 
         for i, j in bones:
-            joint_locs = skeleton[:,[i,j]]
+            joint_locs = skeleton[[i,j],:]
             # plot them
-            ax1.plot(joint_locs[0],joint_locs[1],joint_locs[2], color='blue')
+            ax1.plot(joint_locs[:, 0], joint_locs[:, 1], joint_locs[:,2], color='blue')
 
-        action_class = labels[1][index] + 1
+        action_class = data[index]['label'] + 1
         action_name = actions[action_class]
         plt.title('Skeleton {} Frame #{} of 300 from {}\n (Action {}: {})'.format(index, skeleton_index[0], args.dataset, action_class, action_name))
         skeleton_index[0] += 1
@@ -184,52 +227,52 @@ def visualize(args):
 
     def animate_2(skeleton):
         ax2.clear()
-        ax2.set_xlim([-1,1])
-        ax2.set_ylim([-1,1])
-        ax2.set_zlim([-1,1])
+        ax2.set_xlim([-1, 1])
+        ax2.set_ylim([-1, 1])
+        ax2.set_zlim([-1, 1])
 
         for i, j in bones:
-            joint_locs = skeleton[:,[i,j]]
+            joint_locs = skeleton[[i,j],:]
             # plot them
-            ax2.plot(joint_locs[0],joint_locs[1],joint_locs[2], color='blue')
+            ax2.plot(joint_locs[:, 0], joint_locs[:, 1], joint_locs[:,2], color='blue')
 
-        action_class = labels[1][index] + 1
+        action_class = data[index]['label'] + 1
         action_name = actions[action_class]
-        plt.title('Skeleton {} Frame #{} of 300 from {}\n (Action {}: {})'.format(index, skeleton_index[0], args.dataset, action_class, action_name))
+        plt.title('Transformed Skeleton {} Frame #{} of 300 from {}\n (Action {}: {})'.format(index, skeleton_index[0], args.dataset,
+                                                                            action_class, action_name))
         skeleton_index[0] += 1
-        return ax1
+        return ax2
 
     for index in args.indices:
-    # for index in range(0,60,10):
+        # for index in range(0,60,10):
         mpl.rcParams['legend.fontsize'] = 10
-        fig = plt.figure(figsize=(20,40))
+        fig = plt.figure(figsize=(20, 40))
         ax1 = fig.add_subplot(2, 1, 1, projection='3d')
         ax2 = fig.add_subplot(2, 2, 1, projection='3d')
 
-
         # get data
-        skeletons = data[index]
-        action_class = labels[1][index] + 1
+        skeletons = data[index]['input']
+        action_class = data[index]['label'] + 1
         action_name = actions[action_class]
-        print(f'Sample index: {index}\nAction: {action_class}-{action_name}\n')   # (C,T,V,M)
+        print(f'Sample index: {index}\nAction: {action_class}-{action_name}\n')  # (C,T,V,M)
         # print(skeletons.shape)
         # Pick the first body to visualize
-        skeleton1 = skeletons[..., 0]   # out (C,T,V)
-        # print(skeleton1.shape)
+        skeleton1 = np.array(skeletons).reshape(len(skeletons), 25, 3)
+        transformed_skeleton = ntu_tranform_skeleton(skeletons)
+        transformed_skeleton = np.array(transformed_skeleton).reshape(len(transformed_skeleton), 25, 3)
+        # skeleton1 = skeletons[..., 0]  # out (C,T,V)
+        # # print(skeleton1.shape)
         skeleton_index = [0]
-        skeleton1 = skeleton1.transpose(1,0,2)
+        # skeleton1 = skeleton1.transpose(1, 0, 2)
 
         print(skeleton1.shape)
         an1 = FuncAnimation(fig, animate_1, skeleton1)
-        # an2 = FuncAnimation(fig, animate_2, transformded_data[index])
-
+        an2 = FuncAnimation(fig, animate_2, transformed_skeleton)
 
         plt.title('Skeleton {} from {} test data'.format(index, args.dataset))
         plt.waitforbuttonpress(0)  # this will wait for indefinite time
         plt.close(fig)
         plt.show()
-
-
 
 
 if __name__ == '__main__':
@@ -240,18 +283,16 @@ if __name__ == '__main__':
                         choices=['ntu/xview', 'ntu/xsub', 'ntu120/xset', 'ntu120/xsub'],
                         default='ntu/xsub')
     parser.add_argument('-p', '--datapath',
-                        help='location of dataset numpy file', default="/home/hashmi/Desktop/dataset/activity_recognition/ntu_msg3f/xsub/train_data_joint.npy")
-    parser.add_argument('-tp', '--transformed_datapath',
-                        help='location of dataset numpy file', default="/home/hashmi/Desktop/dataset/activity_recognition/ntu_msg3f/xsub/train_data_joint.npy")
+                        help='location of dataset numpy file', default="/home/hashmi/Desktop/dataset/activity_recognition/NTURGBD-60_120/ntu_60/cross_subject_data/raw_test_data.pkl")
     parser.add_argument('-l', '--labelpath',
-                        help='location of label pickle file', default="/home/hashmi/Desktop/dataset/activity_recognition/ntu_msg3f/xsub/train_label.pkl")
+                        help='location of label pickle file', default="/home/hashmi/Desktop/dataset/activity_recognition/NTURGBD-60_120/ntu_60/cross_view_data/raw_test_data.pkl")
+    parser.add_argument('-t', '--type',
+                        help='type of file train or val', default="avatar_cv_test")
     parser.add_argument('-i', '--indices',
                         type=int,
                         nargs='+',
-                        default=[0],
+                        default=[0,60,120,180],
                         help='the indices of the samples to visualize')
 
     args = parser.parse_args()
     visualize(args)
-
-
